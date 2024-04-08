@@ -1,0 +1,42 @@
+[package]
+# Semantic Versionning is used: https://semver.org/
+version = "1.0.0"
+
+# Lists people or organizations that are considered the "authors" of the package.
+authors = ["BMW TechOffice, inmind .ai"]
+
+# The title and description fields are primarily for displaying extension info in UI
+title = "Defects Generation Sample"
+description="Replicator extension that creates material defects using a Decal Proxy Object"
+
+# Path (relative to the root) or content of readme markdown file for UI.
+readme  = "docs/README.md"
+
+# Icon to show in the extension manager
+icon = "data/icon.png"
+
+# URL of the extension source repository.
+repository = ""
+
+# One of categories for UI.
+category = "Defect"
+
+# Keywords for the extension
+keywords = ["kit", "omnigraph", "replicator", "defect", "material"]
+
+
+# Use omni.ui to build simple UI
+[dependencies]
+"omni.kit.uiapp" = {}
+"omni.ui" = {}
+"omni.replicator.core" = {}
+"omni.kit.window.file_importer" = {}
+"omni.kit.commands" = {}
+"omni.usd" = {}
+"omni.kit.notification_manager" = {}
+
+
+# Main python module this extension provides, it will be publicly available as "import omni.code.snippets".
+[[python.module]]
+name = "defect.generation"
+
