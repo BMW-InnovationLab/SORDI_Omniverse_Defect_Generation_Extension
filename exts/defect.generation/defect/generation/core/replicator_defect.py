@@ -19,7 +19,7 @@ from defect.generation.ui.rep_widgets import ObjectParameters
 from defect.generation.utils.helpers import *
 from defect.generation.domain.models.defect_generation_request import DefectGenerationRequest, DefectObject
 import logging
-
+import random
 logger = logging.getLogger(__name__)
 camera_path = "/World/Camera"
 
@@ -46,7 +46,7 @@ def _create_randomizers():
         plane = rep.get.prim_at_path(prim_path)
         with defects:
             #rep.randomizer.scatter_2d(surface_prims=[plane_samp, sphere_samp], check_for_collisions=True)
-            rep.randomizer.scatter_2d(plane)
+            rep.randomizer.scatter_2d(plane, seed=random.randint(0, 999999))
             rep.modify.pose(
                 rotation=rep.distribution.uniform(
                     (rot_min, 0, 90), 
