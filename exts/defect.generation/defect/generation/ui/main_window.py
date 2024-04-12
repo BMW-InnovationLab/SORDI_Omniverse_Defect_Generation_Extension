@@ -251,13 +251,13 @@ class MainWindow(ui.Window):
                         ui.Button("Export Defect Methods", clicked_fn=lambda: self.open_export_dm_dialog())
     
     def _build_replicator_param(self):
-        def _create_defect_layer(**kwargs):
+        def _create_defect_layer(*args):
             req = DefectGenerationRequest(
                         prims_path=[self.object_params.target_prim.path_value],
                         texture_dir=self.defect_text.directory,
                         defects = [DefectObject(defect_name=d['defect_name'], args=d['args'], uuid=d['uuid']) for d in self.defect_parameters_list]
                     )
-            create_defect_layer(req, **kwargs)
+            create_defect_layer(req, *args)
 
         def preview_data():
             if does_defect_layer_exist():
