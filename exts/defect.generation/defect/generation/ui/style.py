@@ -22,6 +22,9 @@ default_defect_main = {
     },
     "HStack": {
         "padding": 5
+    },
+    "VStack": {
+        "padding": 5
     }
 }
 

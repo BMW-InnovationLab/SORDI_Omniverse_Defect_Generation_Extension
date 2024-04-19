@@ -14,11 +14,12 @@
 # limitations under the License.
 
 import omni.ui as ui
+import omni.kit.commands
 from omni.kit.window.file_importer import get_file_importer
 from typing import List
 import carb
 import omni.usd
-
+    
 class CustomDirectory:
     def __init__(self, label: str, tooltip: str = "", default_dir: str = "", file_types: List[str] = None) -> None:
         self._label_text = label
@@ -107,6 +108,7 @@ class PathWidget:
         self._path_model = ui.SimpleStringModel()
         self._top_stack = ui.HStack(height=0, tooltip=self._tooltip)
         self._button = None
+        self.ctx = omni.usd.get_context()
         self._build()
     
     @property
@@ -117,7 +119,7 @@ class PathWidget:
         :type: str
         """
         return self._path_model.get_value_as_string()
-    
+   
     @path_value.setter
     def path_value(self, value) -> None:
         """
@@ -127,19 +129,27 @@ class PathWidget:
         """
         self._path_model.set_value(value)
 
+
     def _build(self):
         def copy():
-            ctx = omni.usd.get_context()
-            selection = ctx.get_selection().get_selected_prim_paths()
+            selection = self.ctx.get_selection().get_selected_prim_paths()
             if len(selection) > 0:
-                self._path_model.set_value(str(selection[0]))
-
+                # If only one prim is selected
+                if len(selection) == 1:
+                    self._path_model.set_value(str(selection[0]))
+                # If multiple prims are selected, move them under the same Xform group
+                else: 
+                    omni.kit.commands.execute('GroupPrims',
+                        prim_paths=selection)
+                    # Get group  name
+                    grouped_prims_path = self.ctx.get_selection().get_selected_prim_paths()
+                    self._path_model.set_value(str(grouped_prims_path[0]))
+     
         with self._top_stack:
             ui.Label(self._label_text)
             ui.StringField(model=self._path_model, read_only=self._read_only)
             self._button = ui.Button(self._button_label, width=0, style={"padding": 5}, clicked_fn=lambda: copy(), tooltip="Copies the Current Selected Path in the Stage")
+   
 
     def destroy(self):
         self._path_model = None
-
-

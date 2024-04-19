@@ -17,6 +17,7 @@ import omni.usd
 import carb
 import omni.kit.commands
 import os
+from pxr import Usd
 
 def get_current_stage():
     context = omni.usd.get_context()
@@ -57,6 +58,14 @@ def get_prim(prim_path: str):
     stage = get_current_stage()
     prim = stage.GetPrimAtPath(prim_path)
     return prim
+
+
+def get_all_children_names(parent_prim: Usd.Prim):
+    children=[]
+    # Iterates over all children
+    for child_prim in parent_prim.GetAllChildren():
+        children.append(child_prim.GetName())
+    return children
 
 
 def generate_small_uuid():

@@ -1,16 +1,16 @@
 import omni.ui as ui
-from defect.generation.ui.widgets import MinMaxWidget, CustomDirectory, PathWidget
-from defect.generation.utils.helpers import *
-from pxr import Sdf
-from pathlib import Path
-import omni.kit.notification_manager as nm
+from defect.generation.utils.helpers import generate_small_uuid
 
+from omni.kit.notification_manager import post_notification, NotificationStatus
 
 
 class BaseDefectUI:
     def __init__(self) -> None:
         pass
-            
+    
+    def set_object_params(self, object_params):
+        self.object_params = object_params
+
     def prepare_defect_args(self):
         pass
     
@@ -27,20 +27,23 @@ class BaseDefectUI:
         self.defect_parameters_list = defect_parameters_list
 
     def add_new_defect_row(self):
-        self.defect_parameters_list.append({
-            "uuid": generate_small_uuid(),
-            "defect_name": self.defect_name,
-            "args": self.prepare_defect_args()
-        })
-        # Call function which updates UI after adding a new defect row
-        self.update_ui()
+        # Check if current selected prim exists in the defects parameters list
+        if self.object_params.current_selected_prim_value in self.defect_parameters_list:    
 
-    def add_new_defect_row_based_on_input(self, defect_name, args):
-        self.defect_parameters_list.append({
-            "uuid": generate_small_uuid(),
-            "defect_name": self.defect_name,
-            "args": args
-        })
+            # If it exists, append defects to it
+            self.defect_parameters_list[self.object_params.current_selected_prim_value].append({
+                "uuid": generate_small_uuid(),
+                "defect_name": self.defect_name,
+                "args": self.prepare_defect_args()
+            })
+        else:         
+            # If it does not exist, no defects are appended, and warning is sent to the user 
+            post_notification(
+                f"Prim Path {self.object_params.current_selected_prim_value} does not exist. Copy it from the stage and press Apply before adding defects.", 
+                duration = 5, 
+                status=NotificationStatus.WARNING
+            ) 
+
         # Call function which updates UI after adding a new defect row
         self.update_ui()
 

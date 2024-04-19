@@ -20,6 +20,7 @@ from defect.generation.utils.helpers import *
 from defect.generation.domain.models.defect_generation_request import DefectGenerationRequest, DefectObject
 import logging
 import random
+from defect.generation.utils.bmw_writer import BMWWriter
 logger = logging.getLogger(__name__)
 camera_path = "/World/Camera"
 
@@ -79,7 +80,8 @@ def _create_randomizers():
 
 def _create_camera(prim_path):
     if is_valid_prim(camera_path) is None:
-        camera = rep.create.camera(position=1000, look_at=rep.get.prim_at_path(prim_path))
+        #camera positioned conveniantly oposing the cube for testing purposes.
+        camera = rep.create.camera(position=(0.09826, 3.90823, 1.10067), look_at=rep.get.prim_at_path(prim_path))
         carb.log_info(f"Creating Camera: {camera}")
     else:
         camera = rep.get.prim_at_path(camera_path)
@@ -95,20 +97,21 @@ def _create_defects(defect_objet: DefectObject, prim_path: str):
         with target_prim:
             rep.create.projection_material(cube, [('class', semantic_label + '_projectmat'),('uuid', defect_objet.uuid + '_projectmat')])
 
-def create_defect_layer(req: DefectGenerationRequest, frames: int = 1, output_dir: str = "_defects", rt_subframes: int = 0, use_seg: bool = False, use_bb: bool = True):
+def create_defect_layer(req: DefectGenerationRequest, frames: int = 1, output_dir: str = "_defects", rt_subframes: int = 0, use_seg: bool = False, use_bb: bool = True, use_bmw: bool =True):
     if len(req.texture_dir) <= 0:
         carb.log_error("No directory selected")
         return
-    
     with rep.new_layer("Defect"):
 
         _create_randomizers()   
         
-        for defect in req.defects:
-            _create_defects(defect, prim_path=req.prims_path[0])
 
-        # Create / Get camera
-        camera = _create_camera(req.prims_path[0])
+        for defect_prim_objects in req.prim_defects:
+            for defect in defect_prim_objects.defects:
+                _create_defects(defect, prim_path=defect_prim_objects.prim_path)
+
+        # Create / Get camera #TODO: Will we have multiple cameras ?
+        camera = _create_camera(req.prim_defects[0].prim_path)
         
         # Add Default Light
         distance_light = rep.create.light(rotation=(315,0,0), intensity=3000, light_type="distant")
@@ -116,13 +119,25 @@ def create_defect_layer(req: DefectGenerationRequest, frames: int = 1, output_di
         render_product  = rep.create.render_product(camera, (1024, 1024))
 
         # Initialize and attach writer
-        writer = rep.WriterRegistry.get("BasicWriter")
-        writer.initialize(output_dir=output_dir, rgb=True, semantic_segmentation=use_seg, bounding_box_2d_tight=use_bb)
-        # Attach render_product to the writer
+        if use_bmw:
+            # Create a list containing all the defect names present in scene.
+            defect_names = []
+            for prim_defect in req.prim_defects:
+                for defect in prim_defect.defects:
+                    if defect.defect_name not in defect_names:
+                        defect_names.append(defect.defect_name)
+            rep.WriterRegistry.register(BMWWriter)
+            writer = rep.WriterRegistry.get("BMWWriter")
+            writer.initialize(output_dir=output_dir, rgb=True, bounding_box_2d_tight=use_bb,semantic_segmentation=use_seg, defect=defect_names)
+        else:
+            writer = rep.WriterRegistry.get("BasicWriter")
+            writer.initialize(output_dir=output_dir, rgb=True, semantic_segmentation=use_seg, bounding_box_2d_tight=use_bb)
+            # Attach render_product to the writer
         writer.attach([render_product])
 
         # Setup randomization
         with rep.trigger.on_frame(num_frames=frames, rt_subframes=rt_subframes):
-            for defect in req.defects:
-                rep.randomizer.move_defect(defect_objet=defect, prim_path=req.prims_path[0])
-                rep.randomizer.change_defect_image(defect_objet=defect, texture_dir=req.texture_dir)
+            for defect_prim_objects in req.prim_defects:
+                for defect in defect_prim_objects.defects:
+                    rep.randomizer.move_defect(defect_objet=defect, prim_path=defect_prim_objects.prim_path)
+                    rep.randomizer.change_defect_image(defect_objet=defect, texture_dir=req.texture_dir)

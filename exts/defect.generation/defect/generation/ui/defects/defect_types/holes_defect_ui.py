@@ -13,10 +13,10 @@ class HolesUI(BaseDefectUI):
         super().__init__()
         self._count_model = ui.SimpleIntModel(1)
     def prepare_defect_args(self):
-        return {"dim_w_min": self.dim_w.min_value,
-                "dim_w_max": self.dim_w.max_value,
-                "dim_h_min": self.dim_h.min_value,
-                "dim_h_max": self.dim_h.max_value,
+        return {"dim_w_min": self.radius.min_value,
+                "dim_w_max": self.radius.max_value,
+                "dim_h_min": self.radius.min_value,
+                "dim_h_max": self.radius.max_value,
                 "rot_min": self.rot.min_value,
                 "rot_max": self.rot.max_value,
                 "semantic_label": self.semantic_label.as_string,
@@ -24,13 +24,9 @@ class HolesUI(BaseDefectUI):
     
     def build_ui(self):
         self._build_base_ui()
-        self.dim_w = MinMaxWidget("Defect Dimensions Width",
+        self.radius = MinMaxWidget("Defect Radius",
                                   min_value=0.1,
-                                  tooltip="Defining the Minimum and Maximum Width of the Defect")
-        self.dim_h = MinMaxWidget("Defect Dimensions Length",
-                                  min_value=0.1,
-                                  tooltip="Defining the Minimum and Maximum Length of the Defect")
-
+                                  tooltip="Defining the Minimum and Maximum Radius of the Defect")
         self.rot = MinMaxWidget("Defect Rotation", 
                                 tooltip="Defining the Minimum and Maximum Rotation of the Defect")
         
