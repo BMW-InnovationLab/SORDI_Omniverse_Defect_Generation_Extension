@@ -8,8 +8,8 @@ This extension for NVIDIA Omniverse allows users to create defects and apply the
 
 1. **Copy the Target PrimPath**:
    - Open the extension within NVIDIA Omniverse.
-   - Click on the prim to which you wish to apply defects, and then click `Copy`.
-   - Click `Apply` to add the necessary primvars to the prim.
+   - Click on the prim(s) to which you wish to apply defects, and then click `Copy`.
+   - Click `Apply` to add the necessary primvars to the prim(s) selected.
 
 ![Loading pc](./exts/defect.generation/data/extension_preview_1.png)
 
@@ -39,6 +39,8 @@ data_defects/
 
 ![Loading pc](./exts/defect.generation/data/extension_preview_2.png)
 
+- The added defects will appear under the corresponding prim path in the `Params` section.
+![Loading pc](./exts/defect.generation/data/extension_preview_4.png)
 ## Adding the Replicator Parameters
 
 1. **Import the Output Directory**:
