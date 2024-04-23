@@ -1,12 +1,7 @@
 from typing import List, Dict
-import os
-
-
-
 from defect.generation.ui.defects.defect_types.base_defect_ui import  BaseDefectUI
-
-from defect.generation.utils.subclass_utils import get_subclasses, import_directory_classes
-
+from defect.generation.utils.subclass_utils import get_subclasses
+import os
 # Import defect uis
 from defect.generation.ui.defects.defect_types.scratches_defect_ui import ScratchesUI
 from defect.generation.ui.defects.defect_types.cracks_defect_ui import CracksUI

@@ -16,19 +16,22 @@
 import carb
 from typing import List
 import json
+import os
+import omni
 import omni.ui as ui
 from omni.ui import DockPreference
 from omni.kit.window.file_exporter import get_file_exporter
 from omni.kit.window.filepicker import FilePickerDialog
-from defect.generation.ui.style import *
+from defect.generation.ui.style import default_defect_main
 from defect.generation.ui.widgets import CustomDirectory
-from defect.generation.core.replicator_defect import create_defect_layer
+from defect.generation.core.replicator.replicator_defect import create_defect_layer
 from defect.generation.utils.replicator_utils import rep_preview, does_defect_layer_exist, rep_run, get_defect_layer
-from defect.generation.ui.rep_widgets import ObjectParameters
+from defect.generation.ui.prim_widgets import ObjectParameters
 from defect.generation.ui.defects.defect_types_factory import DefectUIFactory
-from defect.generation.utils.helpers import *
+from defect.generation.utils.helpers import delete_prim, is_valid_prim
 from defect.generation.utils.file_picker import open_file_dialog, click_open_json_startup
 from defect.generation.domain.models.defect_generation_request import DefectGenerationRequest, DefectObject, PrimDefectObject
+from omni.kit.notification_manager import post_notification, NotificationStatus
 from pathlib import Path
 from functools import lru_cache
 import logging
@@ -319,6 +322,7 @@ class MainWindow(ui.Window):
                     )
             
             create_defect_layer(req, **kwargs)
+            post_notification(f"Created defect layer with {len(self.defect_parameters_list)} total prims/groups and {sum(int(defect['args']['count']) for defects in self.defect_parameters_list.values() for defect in defects)} combined defects.", hide_after_timeout=True, duration=5, status=NotificationStatus.INFO)
 
         def preview_data():
             if does_defect_layer_exist():
@@ -329,6 +333,7 @@ class MainWindow(ui.Window):
         
         # TODO: Fix that so it supports target_prim
         def remove_replicator_graph():
+            post_notification(f"Removing replicator graph.", hide_after_timeout=True, duration=5, status=NotificationStatus.WARNING)
             if get_defect_layer() is not None:
                 layer, pos = get_defect_layer()
                 omni.kit.commands.execute('RemoveSublayer',
@@ -348,6 +353,7 @@ class MainWindow(ui.Window):
             if subframes <= 0:
                 subframes = 0
             if total_frames > 0:
+                post_notification(f"Running replicator with {total_frames} total frames and {subframes} subframes.", hide_after_timeout=True, duration=5, status=NotificationStatus.INFO)
                 _create_defect_layer(output_dir = self.output_dir.directory, frames = total_frames,rt_subframes=subframes ,use_seg = self._use_seg.as_bool,use_bb= self._use_bb.as_bool, use_bmw = self._use_bmw.as_bool)
                 self.rep_layer_button.text = "Recreate Replicator Graph"
                 rep_run()

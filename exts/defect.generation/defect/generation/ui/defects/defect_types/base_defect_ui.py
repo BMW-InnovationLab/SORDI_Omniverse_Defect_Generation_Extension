@@ -1,6 +1,5 @@
 import omni.ui as ui
 from defect.generation.utils.helpers import generate_small_uuid
-
 from omni.kit.notification_manager import post_notification, NotificationStatus
 
 
@@ -28,14 +27,22 @@ class BaseDefectUI:
 
     def add_new_defect_row(self):
         # Check if current selected prim exists in the defects parameters list
-        if self.object_params.current_selected_prim_value in self.defect_parameters_list:    
+        if self.object_params.current_selected_prim_value in self.defect_parameters_list:   
+
+            args = self.prepare_defect_args()
 
             # If it exists, append defects to it
             self.defect_parameters_list[self.object_params.current_selected_prim_value].append({
                 "uuid": generate_small_uuid(),
                 "defect_name": self.defect_name,
-                "args": self.prepare_defect_args()
+                "args": args
             })
+                        
+            post_notification(
+                f"Added defect: {self.defect_name}, count: {args['count']}, semantic label: {args['semantic_label']}", 
+                duration = 5, 
+                status=NotificationStatus.INFO
+            ) 
         else:         
             # If it does not exist, no defects are appended, and warning is sent to the user 
             post_notification(

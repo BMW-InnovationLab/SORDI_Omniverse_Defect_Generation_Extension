@@ -1,11 +1,6 @@
 import omni.ui as ui
-from defect.generation.ui.widgets import MinMaxWidget, CustomDirectory, PathWidget
+from defect.generation.ui.widgets import MinMaxWidget
 from defect.generation.ui.defects.defect_types.base_defect_ui import BaseDefectUI
-from defect.generation.utils.helpers import *
-from pxr import Sdf
-from pathlib import Path
-import omni.kit.notification_manager as nm
-
 
 
 class  CracksUI(BaseDefectUI):
