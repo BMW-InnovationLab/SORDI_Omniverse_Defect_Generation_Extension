@@ -1,14 +1,8 @@
-import time
-import asyncio
 import json
 import io
 import os
-
-import omni.kit
-import omni.usd
-import omni.replicator.core as rep
 import numpy as np
-from typing import Any, List
+from typing import List
 from omni.replicator.core import Writer, AnnotatorRegistry, BackendDispatch
 
 class BMWWriter(Writer):

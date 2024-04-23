@@ -15,9 +15,9 @@
 
 import omni.ui as ui
 from defect.generation.ui.widgets import PathWidget
-from defect.generation.utils.helpers import *
+from defect.generation.utils.helpers import is_valid_prim, get_prim, check_path
 from pxr import Sdf
-import omni.kit.notification_manager as nm
+from omni.kit.notification_manager import post_notification, NotificationStatus
 
 
 # Target Prim
@@ -55,7 +55,7 @@ class ObjectParameters():
             prim.CreateAttribute('primvars:d1_up_vector', Sdf.ValueTypeNames.Float3, custom=True).Set((0,0,0))
             prim.CreateAttribute('primvars:d1_position', Sdf.ValueTypeNames.Float3, custom=True).Set((0,0,0))
             prim.CreateAttribute('primvars:v3_scale', Sdf.ValueTypeNames.Float3, custom=True).Set((0,0,0))
-            nm.post_notification(f"Applied Primvars to: {prim.GetPath()}", hide_after_timeout=True, duration=5, status=nm.NotificationStatus.INFO)
+            post_notification(f"Applied Primvars to: {prim.GetPath()}", hide_after_timeout=True, duration=5, status=NotificationStatus.INFO)
 
         def _apply():
             prim_path = self.target_prim.path_value
@@ -88,7 +88,3 @@ class ObjectParameters():
     def destroy(self):
         self.target_prim.destroy()
         self.target_prim = None
-
-class MaterialParameters():
-    def __init__(self) -> None:
-        pass

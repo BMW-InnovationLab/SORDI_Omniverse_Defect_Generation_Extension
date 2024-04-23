@@ -15,12 +15,12 @@
 
 import omni.replicator.core as rep
 import carb
-from defect.generation.ui.rep_widgets import ObjectParameters
-from defect.generation.utils.helpers import *
+from defect.generation.utils.helpers import get_textures, is_valid_prim
 from defect.generation.domain.models.defect_generation_request import DefectGenerationRequest, DefectObject
 import logging
+import os
 import random
-from defect.generation.utils.bmw_writer import BMWWriter
+from defect.generation.core.writer.bmw_writer import BMWWriter
 logger = logging.getLogger(__name__)
 camera_path = "/World/Camera"
 
