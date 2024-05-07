@@ -23,7 +23,7 @@ class HolesUI(BaseDefectUI):
         self.radius = MinMaxWidget("Defect Radius",
                                   min_value=0.1,
                                   tooltip="Defining the Minimum and Maximum Radius of the Defect")
-        self.rot = MinMaxWidget("Defect Rotation", 
+        self.rot = MinMaxWidget("Defect Rotation", min_value=0, max_value=360,
                                 tooltip="Defining the Minimum and Maximum Rotation of the Defect")
         
         with ui.HStack(height=0, tooltip="Number of defects to generate"):

@@ -33,7 +33,6 @@ class BaseDefectUI:
 
             # If it exists, append defects to it
             self.defect_parameters_list[self.object_params.current_selected_prim_value].append({
-                "uuid": generate_small_uuid(),
                 "defect_name": self.defect_name,
                 "args": args
             })
