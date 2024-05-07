@@ -28,10 +28,12 @@ from defect.generation.core.replicator.replicator_defect import create_defect_la
 from defect.generation.utils.replicator_utils import rep_preview, does_defect_layer_exist, rep_run, get_defect_layer
 from defect.generation.ui.prim_widgets import ObjectParameters
 from defect.generation.ui.defects.defect_types_factory import DefectUIFactory
-from defect.generation.utils.helpers import delete_prim, is_valid_prim
+from defect.generation.utils.helpers import delete_prim, is_valid_prim, generate_small_uuid
+from defect.generation.ui.domain_randomization_widget import RandomizerParameters
 from defect.generation.utils.file_picker import open_file_dialog, click_open_json_startup
 from defect.generation.domain.models.defect_generation_request import DefectGenerationRequest, DefectObject, PrimDefectObject
 from omni.kit.notification_manager import post_notification, NotificationStatus
+from omni.kit.window.extensions.utils import open_file_using_os_default
 from pathlib import Path
 from functools import lru_cache
 import logging
@@ -72,7 +74,9 @@ class MainWindow(ui.Window):
         self.defect_methods_ui = sorted(self.defect_methods_ui, key=lambda x: x.defect_name)
         for defect_method_ui in self.defect_methods_ui:
             defect_method_ui.set_object_params(self.object_params)
-
+        
+        # Randomizers UI
+        self.randomizer_params = RandomizerParameters()
         
         # List that stores all the target prims
         self.default_params_text = "Target Prim"
@@ -236,6 +240,7 @@ class MainWindow(ui.Window):
                 with ui.VStack(style={"margin": 3}):
                     self._build_object_param()               
                     self._build_defect_param()
+                    self._build_randomizer_param()
                     self._build_replicator_param()
 
     def _build_object_param(self):
@@ -256,12 +261,10 @@ class MainWindow(ui.Window):
 
         with self._build_collapse_base("Defect Parameters"):
 
-            #TODO: Move to separate widget
-            TEXTURE_DIR = os.path.join(Path(__file__).parent,"data")
+            TEXTURE_DIR = os.path.join(Path(__file__).parents[3],"data")
             self.defect_text = CustomDirectory("Defect Texture Folder",
-                                        default_dir=str(TEXTURE_DIR),
-                                        tooltip="A folder location containing a single or set of textures (.png)",
-                                        file_types=[("*.png", "PNG"), ("*", "All Files")])
+                            default_dir=str(TEXTURE_DIR),
+                            tooltip="A folder location containing a single or set of textures (.png)")
 
             for defect_method_ui in self.defect_methods_ui:
                 # Preparing defect method UIs
@@ -308,20 +311,24 @@ class MainWindow(ui.Window):
                     with ui.HStack(spacing=5):
                         ui.Button("Export Defect Methods", clicked_fn=lambda: self.open_export_dm_dialog())
     
+    def _build_randomizer_param(self): 
+        with self._build_collapse_base("Randomizer Parameters"): 
+            self.randomizer_params.build_randomization_ui()
+
     def _build_replicator_param(self):
         def _create_defect_layer(**kwargs):
             prim_defect_objects = []
             for prim_path, defects in self.defect_parameters_list.items():
-                prim_defect_objects.append(PrimDefectObject(prim_path=prim_path, defects=[DefectObject(defect_name=d['defect_name'], args=d['args'], uuid=d['uuid']) for d in defects]))
-
-
+                for d in defects:
+                    for _ in range(int(d['args']['count'])):
+                        prim_defect_objects.append(PrimDefectObject(prim_path=prim_path, defects=[DefectObject(defect_name=d['defect_name'], args=d['args'], uuid=generate_small_uuid())]))
         
-            req = DefectGenerationRequest(
+            defect_generation_request = DefectGenerationRequest(
                         texture_dir=self.defect_text.directory,
                         prim_defects = prim_defect_objects
                     )
-            
-            create_defect_layer(req, **kwargs)
+            domain_randomization_request = self.randomizer_params.prepare_domain_randomization_request()
+            create_defect_layer(defect_generation_request, domain_randomization_request, **kwargs)
             post_notification(f"Created defect layer with {len(self.defect_parameters_list)} total prims/groups and {sum(int(defect['args']['count']) for defects in self.defect_parameters_list.values() for defect in defects)} combined defects.", hide_after_timeout=True, duration=5, status=NotificationStatus.INFO)
 
         def preview_data():
