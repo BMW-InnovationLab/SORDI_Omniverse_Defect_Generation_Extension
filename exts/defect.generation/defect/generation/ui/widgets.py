@@ -15,16 +15,16 @@
 
 import omni.ui as ui
 import omni.kit.commands
-from omni.kit.window.file_importer import get_file_importer
-from typing import List
-import carb
+from typing import List, Callable
 import omni.usd
-    
+import asyncio
+from omni.kit.window.filepicker import FilePickerDialog
+from omni.kit.widget.filebrowser import FileBrowserItem
+
 class CustomDirectory:
-    def __init__(self, label: str, tooltip: str = "", default_dir: str = "", file_types: List[str] = None) -> None:
+    def __init__(self, label: str, tooltip: str = "", default_dir: str = "") -> None:
         self._label_text = label
         self._tooltip = tooltip
-        self._file_types = file_types
         self._dir = ui.SimpleStringModel(default_dir)
         self._build_directory()
 
@@ -36,27 +36,68 @@ class CustomDirectory:
         :type: str
         """
         return self._dir.get_value_as_string()
-
+    
     def _build_directory(self):
         with ui.HStack(height=0, tooltip=self._tooltip):
             ui.Label(self._label_text)
             ui.StringField(model=self._dir)
-            ui.Button("Open", width=0, style={"padding": 5}, clicked_fn=self._pick_directory)
+            ui.Button("Browse", width=0, style={"padding": 5}, clicked_fn=self.click_open_file_dialog_dir)
 
-    def _pick_directory(self):
-        file_importer = get_file_importer()
-        if not file_importer:
-            carb.log_warning("Unable to get file importer")
-        file_importer.show_window(title="Select Folder", 
-                                  import_button_label="Import Directory", 
-                                  import_handler=self.import_handler, 
-                                  file_extension_types=self._file_types
-                                  )
+    
+    def open_dir_dialog(self, callable_fn: Callable):
+    
+        def _on_selection_changed(items: List[FileBrowserItem]):
+            if len(items) != 1:
+                return False
+            item = items[0]
+            if not item.is_folder:
+                return False
+            else:
+                dialog.set_filename(item.name)
+        def _create_filepicker(
+                title: str,
+                filters: list = ["All Files (*)"],
+                click_apply_fn: Callable = None,
+                error_fn: Callable = None
+        ) -> FilePickerDialog:
+            async def on_click_handler(dirname: str, dialog: FilePickerDialog, click_fn: Callable):
+                click_fn(dirname)
+                dialog.hide()
 
+            dialog = FilePickerDialog(
+                title,
+                allow_multi_selection=False,
+                apply_button_label="Select",
+                click_apply_handler=lambda filename, dirname: asyncio.ensure_future(on_click_handler(dirname, dialog, click_apply_fn)),
+                click_cancel_handler=lambda filename, dirname: dialog.hide(),
+                selection_changed_fn= _on_selection_changed,
+                item_filter_options=filters,
+                error_handler=error_fn)
+            dialog.set_filebar_label_name("Folder name")
+            dialog.set_current_directory(self.directory)
+            dialog.hide()
+            return dialog
 
-    def import_handler(self, filename: str, dirname: str, selections: List[str] = []):
-        self._dir.set_value(dirname)
+        dialog = _create_filepicker(
+            "Select Directory",
+            click_apply_fn=lambda dirname: callable_fn(dialog, dirname),
+        )
+        dialog.show()
+    def click_open_dir_startup(self, dialog: FilePickerDialog, dirname: str):
+        selections = dialog.get_current_selections()
+        dialog.hide()
+        dirname = dirname.strip()
+        if dirname and not dirname.endswith("/"):
+            dirname += "/"
 
+        return selections, dirname
+    def click_open_file_dialog_dir(self):
+        def on_click_open_dir(dialog: FilePickerDialog, dirname: str):
+            _, fullpath = self.click_open_dir_startup(dialog, dirname)
+            self._dir.set_value(fullpath)
+
+        self.open_dir_dialog(on_click_open_dir)
+        
     def destroy(self):
         self._dir = None
 
@@ -98,6 +139,59 @@ class MinMaxWidget:
     def destroy(self):
         self._max_model = None
         self._min_model = None
+    
+class RGBMinMaxWidget: 
+    def __init__(self, label: str, min_r_value: float = 0, max_r_value: float = 1, min_g_value: float = 0, max_g_value: float = 1, min_b_value: float = 0, max_b_value: float = 1, tooltip: str = "") -> None:
+        self._min_values = [min_r_value, min_g_value, min_b_value]
+        self._max_values = [max_r_value, max_g_value, max_b_value]
+        self._label_text = label
+        self._tooltip = tooltip
+        self._min_models = []
+        self._max_models = []
+        self._build_min_max()
+
+    @property
+    def min_values(self) -> List[float]:
+        """
+        Min Values of the UI
+
+        :type: List[float]
+        """
+        return [model.get_value_as_float() for model in self._min_models]
+    
+    @property 
+    def max_values(self) -> List[float]:
+        """
+        Max Values of the UI
+
+        :type: List[float]
+        """
+        return [model.get_value_as_float() for model in self._max_models]
+
+    def _build_min_max(self):
+            with ui.HStack(height=0, tooltip=self._tooltip):
+                ui.Label(self._label_text)
+                with ui.VStack(): 
+                    with ui.HStack(spacing=7):
+                        ui.Label("Min", width=0)
+                        for label, min_value in zip(["R", "G", "B"], self._min_values):
+                            ui.Label(label, width=0)
+                            min_model = ui.SimpleFloatModel(min_value)
+                            self._min_models.append(min_model)
+                            ui.FloatDrag(model=min_model, min=0.0, max=2.0)
+                    with ui.HStack(spacing=7):
+                        ui.Label("Max", width=0)
+                        for label, max_value in zip(["R", "G", "B"], self._max_values):
+                            ui.Label(label, width=0)
+                            max_model = ui.SimpleFloatModel(max_value)
+                            self._max_models.append(max_model)
+                            ui.FloatDrag(model=max_model, min=0.0, max=2.0)
+
+
+    def destroy(self):
+        self._min_models= None
+        self._max_models= None
+
 
 class PathWidget:
     def __init__(self, label: str, button_label: str = "Copy", read_only: bool = False, tooltip: str = "") -> None:
