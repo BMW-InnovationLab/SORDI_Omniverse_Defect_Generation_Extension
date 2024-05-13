@@ -62,7 +62,7 @@ class MainWindow(ui.Window):
         self.output_dir = None
         self.frame_change = None
         
-        # List that stores all~ the defect parameters to be applied
+        # List that stores all the defect parameters to be applied
         self.defect_parameters_list = {}
 
         # Object params
@@ -103,7 +103,7 @@ class MainWindow(ui.Window):
 
             # Loop over the selected prims and create a collapsable frame with defects for each in the UI
             for i, (prim_path, defects) in enumerate(self.defect_parameters_list.items()):
-                with ui.HStack(spacing=5): 
+                with ui.HStack(spacing=3): 
                     self.object_params_frame_ui = ui.CollapsableFrame(f"{str(prim_path)[:MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW]}{'...' if len(str(prim_path))>MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW else ''}")
                     with self.object_params_frame_ui:
                         self.defect_parameters_list_ui = ui.VStack()
@@ -137,27 +137,42 @@ class MainWindow(ui.Window):
 
                         # with ui.HStack():
                         #     ui.Line(height=ui.Length(20))
+                    
                     ui.Button(
                         "Select",
                         width=20,
                         height=0,
                         clicked_fn= lambda pth = prim_path : self.object_params.set_current_selected_prim(pth),
                         tooltip="Select entry",
-                ) 
+                    ) 
+                    ui.Button(
+                        "Export",
+                        width=20,
+                        height=0,
+                        clicked_fn= lambda pth = prim_path : self.open_export_dm_dialog(pth),
+                        tooltip="Export list of defects",
+                    ) 
+                    ui.Button(
+                        "Load",
+                        width=20,
+                        height=0,
+                        clicked_fn= lambda pth = prim_path : self.open_load_dm_dialog(pth),
+                        tooltip="Load list of defects",
+                    ) 
                     ui.Button(
                         f"{_ui_get_delete_glyph()}",
                         width=20,
                         height=0,
                         clicked_fn= lambda pth = prim_path : self.delete_tp(pth),
                         tooltip="Remove entry",
-                )
+                    )
 
-        print(self.object_params.defect_parameters_list)
+
                         
     # Function to be called when the delete target prim icon is pressed
     def delete_tp(self, pth):
         logger.warning(f"Deleting target prim: {pth}")
-        del self.object_params.defect_parameters_list[pth]
+        self.defect_parameters_list.pop(pth, None)
         self.object_params.set_current_selected_prim("")
         # self.object_params_frame_ui.title=self.default_params_text
         self.update_object_params_list_ui()
@@ -165,63 +180,91 @@ class MainWindow(ui.Window):
     # Function to be called when the delete defect method icon is pressed
     def delete_dm(self, idx, path):
         logger.warning(f"Deleting defect method {idx} from target prim {path} ")
-        del self.object_params.defect_parameters_list[path][idx]
-
+        if path in self.defect_parameters_list:
+            if len(self.defect_parameters_list[path]) > idx:
+                self.defect_parameters_list[path].pop(idx)
         # After updating the list, re-update the UI
         self.update_object_params_list_ui()
     
     # Export  defect methods logic
-    def _export_dm_handler(self, filename: str, dirname: str, extension: str, selections: List[str]):
-        try:
-            full_path = os.path.join(dirname, f"{filename}{extension}")
-            if self.defect_parameters_list:
-                with open(full_path, 'w') as defect_file:
-                    json.dump(self.defect_parameters_list, defect_file)
-                logger.info(f"Exported defect data to '{full_path}'")
+    def generate_export_handler(self, prim_path = None):
+        def _export_dm_handler(filename: str, dirname: str, extension: str, selections: List[str]):
+            try:
+                full_path = os.path.join(dirname, f"{filename}{extension}")
+                if self.defect_parameters_list:
+                    with open(full_path, 'w') as defect_file:
+                        json.dump(self.defect_parameters_list if not prim_path else self.defect_parameters_list[prim_path], defect_file)
+                    logger.info(f"Exported defect data to '{full_path}'")
 
-        except Exception as e:
-            logger.error(f"Error exporting defect methods: {e}")
+            except Exception as e:
+                logger.error(f"Error exporting defect methods: {e}")
+        return _export_dm_handler
+    
     # Open export defect methods dialog
-    def open_export_dm_dialog(self):
-
+    def open_export_dm_dialog(self, prim_path = None):
         file_exporter = get_file_exporter()
         file_exporter.show_window(
             title="Export As ...",
             export_button_label="Save",
-            export_handler=self._export_dm_handler,
-            filename_url="defect_methods.json",  # Default filename
+            export_handler=self.generate_export_handler(prim_path=prim_path),
+            filename_url="prim_defect_methods.json" if not prim_path else "defect_methods.json",  # Default filename
             file_extension_types=[(".json", "JSON Files")]
         )
-    # Load defect methods 
-    def load_defect(self):
-        def _set_defects(defect):
-            self.defect_parameters_list.clear()
-            self.defect_parameters_list = defect
-            logger.warning(defect)
-            self.update_object_params_list_ui()
 
-        def _validate_json_structure(data):
-            for prim_path, defects  in data.items():
-                for defect in defects:
-                    if not all(key in defect for key in ('defect_name','args')):
-                        raise ValueError(
-                            "Invalid JSON structure. Each dictionary must have 'defect_name and 'args' keys.")
-
-        defect_path = self.defect_path.model.get_value_as_string()
-        with open(defect_path, 'r') as file:
-            defect = json.load(file)
-            # Validate the JSON structure
+    # Load defect methods logic
+    def generate_load_handler(self, prim_path = None):
+        def _load_dm_handler(filename: str, dirname: str, extension: str, selections: List[str]):
             try:
-                _validate_json_structure(defect)
-                logger.info("JSON structure is valid.")
-                _set_defects(defect)
-                self.info_defect.text = f"{len(defect)} prim(s) with defects"
-            except ValueError as e:
-                logger.error("Invalid JSON structure:", e)
+                def _set_defects(defect, prim_path):
+                    if not prim_path:
+                        self.defect_parameters_list.clear()
+                        self.defect_parameters_list.update(defect)
+                    else:
+                        self.defect_parameters_list[prim_path] = defect
+                    logger.warning(defect)
+                    self.update_object_params_list_ui()
 
+                def _validate_defects(defects):
+                    for defect in defects:
+                        if not all(key in defect for key in ('defect_name','args')):
+                                    raise ValueError(
+                                        "Invalid JSON structure. Each dictionary must have 'defect_name and 'args' keys.")
+                def _validate_json_structure(data, prim_path):
+                    if not prim_path:
+                        for prim_path, defects  in data.items():
+                            _validate_defects(defects)
+                    else:
+                        _validate_defects(data)
 
+                defect_path = os.path.join(dirname, f"{filename}{extension}")
+                with open(defect_path, 'r') as file:
+                    defect = json.load(file)
+                    # Validate the JSON structure
+                    try:
+                        _validate_json_structure(defect, prim_path)
+                        logger.info("JSON structure is valid.")
+                        _set_defects(defect, prim_path)
+                        
+                        self.info_defect.text = f"{len(defect)} {'prim(s) with defects' if not prim_path else 'defect(s)'} loaded ..."
+    
+                    except ValueError as e:
+                        logger.error("Invalid JSON structure:", e)
 
- 
+            except Exception as e:
+                logger.error(f"Error loading defect methods: {e}")
+        return _load_dm_handler
+    
+    # Open load defect methods dialog
+    def open_load_dm_dialog(self, prim_path = None):
+        file_exporter = get_file_exporter()
+        file_exporter.show_window(
+            title="Load ...",
+            export_button_label="Load",
+            export_handler=self.generate_load_handler(prim_path=prim_path),
+            filename_url="prim_defect_methods.json" if not prim_path else "defect_methods.json",  # Default filename
+            file_extension_types=[(".json", "JSON Files")]
+        )
+
 
     ###############################
     # UI
@@ -295,22 +338,9 @@ class MainWindow(ui.Window):
             with ui.Frame():
                 with ui.VStack():
                     with ui.HStack(spacing=5):
-                        ui.Spacer(width=13)
-                        ui.Label("Defect JSON file", width=100)
-                        self.defect_path = ui.StringField()
-                        ui.Button("Browse", clicked_fn=click_open_file_dialog_defect)
-                        ui.Button("Load", clicked_fn=self.load_defect)
-                        ui.Button(
-                            f"{_ui_get_open_folder_glyph()}",
-                            width=20,
-                            clicked_fn=lambda: open_file_using_os_default(self.defect_path.model.get_value_as_string()),
-                            tooltip="Open defects",
-                        )
-                        ui.Spacer(width=25)
-                        self.info_defect = ui.Label("", style={"color": ui.color(255, 255, 0)})
-                    with ui.HStack(spacing=5):
+                        ui.Button("Load Defect Methods", clicked_fn=lambda: self.open_load_dm_dialog())
                         ui.Button("Export Defect Methods", clicked_fn=lambda: self.open_export_dm_dialog())
-    
+                    self.info_defect = ui.Label("", style={"color": ui.color(255, 255, 0)})
     def _build_randomizer_param(self): 
         with self._build_collapse_base("Randomizer Parameters"): 
             self.randomizer_params.build_randomization_ui()
@@ -319,6 +349,11 @@ class MainWindow(ui.Window):
         def _create_defect_layer(**kwargs):
             prim_defect_objects = []
             for prim_path, defects in self.defect_parameters_list.items():
+                # If prim not valid, skip it
+                if not is_valid_prim(prim_path):
+                    continue
+                # If primvars not applied, apply them
+                self.object_params.apply(prim_path)
                 for d in defects:
                     for _ in range(int(d['args']['count'])):
                         prim_defect_objects.append(PrimDefectObject(prim_path=prim_path, defects=[DefectObject(defect_name=d['defect_name'], args=d['args'], uuid=generate_small_uuid())]))
@@ -340,18 +375,26 @@ class MainWindow(ui.Window):
         
         # TODO: Fix that so it supports target_prim
         def remove_replicator_graph():
-            post_notification(f"Removing replicator graph.", hide_after_timeout=True, duration=5, status=NotificationStatus.WARNING)
             if get_defect_layer() is not None:
                 layer, pos = get_defect_layer()
                 omni.kit.commands.execute('RemoveSublayer',
-                    layer_identifier=layer.identifier,
-                    sublayer_position=pos)
-                if is_valid_prim('/World/Looks'):
-                    delete_prim('/World/Looks')
-                if is_valid_prim(self.object_params.target_prim.path_value + "/Projection"):
-                    delete_prim(self.object_params.target_prim.path_value + "/Projection")
+                                          layer_identifier=layer.identifier,
+                                          sublayer_position=pos)
+            # Remove Looks
+            if is_valid_prim('/World/Looks'):
+                delete_prim('/World/Looks')
+                logger.warning(f"Deleting : /World/Looks")
+            # Remove replicator
             if is_valid_prim('/Replicator'):
                 delete_prim('/Replicator')
+                logger.warning(f"Deleting : /Replicator")
+            
+            #Remove projections
+            for prim_path in list(self.defect_parameters_list.keys()):
+                delete_prim(f"{prim_path}/Projection")
+                logger.warning(f"Deleting : {prim_path}/Projection")
+
+
 
         def run_replicator():
             remove_replicator_graph()
@@ -396,9 +439,13 @@ class MainWindow(ui.Window):
                          tooltip="Defines how many subframes of rendering occur before going to the next frame")
                 ui.Spacer(width=ui.Fraction(0.25))
                 ui.IntField(model=self.rt_subframes)
-            self.rep_layer_button = ui.Button("Create Replicator Layer", 
-                                              clicked_fn=lambda: create_replicator_graph(), 
-                                              tooltip="Creates/Recreates the Replicator Graph, based on the current Defect Parameters")
+            with ui.HStack(height=0):
+                self.rep_layer_button = ui.Button("Create Replicator Layer", 
+                                                clicked_fn=lambda: create_replicator_graph(), 
+                                                tooltip="Creates/Recreates the Replicator Graph, based on the current Defect Parameters")
+                self.rep_delete_layer_button = ui.Button("Delete Replicator Layer", 
+                                        clicked_fn=lambda: remove_replicator_graph(), 
+                                        tooltip="Deletes the Replicator Graph and all relevant components")
             with ui.HStack(height=0):
                 ui.Button("Preview", width=0, clicked_fn=lambda: preview_data(),
                           tooltip="Preview a Replicator Scene")
