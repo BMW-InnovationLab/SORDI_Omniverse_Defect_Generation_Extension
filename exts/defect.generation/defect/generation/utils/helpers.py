@@ -20,6 +20,7 @@ import omni.kit.commands
 import os
 from pxr import Usd, Gf
 from defect.generation.domain.models.defect_generation_request import PrimDefectObject, DefectObject
+import matplotlib as mpl
 
 def get_current_stage():
     context = omni.usd.get_context()
@@ -95,3 +96,8 @@ def find_prim_defect_by_uuid(prim_defects: List[PrimDefectObject], target_uuid: 
         for defect in prim_defect.defects:
             if defect.uuid == target_uuid:
                 return prim_defect
+
+def rgba_to_hex(color):
+    r, g, b = color
+    hex = mpl.colors.rgb2hex((r, g, b), keep_alpha=False)
+    return hex

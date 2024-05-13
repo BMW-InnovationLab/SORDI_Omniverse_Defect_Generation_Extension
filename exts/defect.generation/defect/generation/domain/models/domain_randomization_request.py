@@ -1,4 +1,4 @@
-from typing import Any, List, Tuple
+from typing import Any, List, Tuple, Dict
 from pydantic import BaseModel
 
 class LightDomainRandomizationParameters(BaseModel):
@@ -22,6 +22,9 @@ class CameraDomainRandomizationParameters(BaseModel):
     camera_prims: List[Tuple[str]] = None
     active = False
 
+class ColorDomainRandomizationParameters(BaseModel):
+    prim_colors: Dict[str, List[Tuple[float, float, float]]] = None
+    active = False
 
 class DomainRandomizationRequest(BaseModel):
     # Light params
@@ -29,4 +32,4 @@ class DomainRandomizationRequest(BaseModel):
     # Camera params
     camera_domain_randomization_params: CameraDomainRandomizationParameters
     # Color params
-    #TODO: Add color randomization params
+    color_domain_randomization_params: ColorDomainRandomizationParameters

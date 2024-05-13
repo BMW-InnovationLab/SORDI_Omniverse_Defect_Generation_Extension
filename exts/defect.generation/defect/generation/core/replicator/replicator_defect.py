@@ -14,26 +14,30 @@
 # limitations under the License.
 import omni.replicator.core as rep
 import carb
-from defect.generation.utils.helpers import get_textures, is_valid_prim, get_center_coordinates, get_prim, get_all_children_paths
+from defect.generation.utils.helpers import get_textures, is_valid_prim, get_center_coordinates, fetch_all_defect_objects, find_prim_defect_by_uuid, get_prim, get_all_children_paths, get_current_stage
 from defect.generation.domain.models.defect_generation_request import DefectGenerationRequest, DefectObject
-from defect.generation.domain.models.domain_randomization_request import DomainRandomizationRequest, LightDomainRandomizationParameters, CameraDomainRandomizationParameters
+from defect.generation.domain.models.domain_randomization_request import DomainRandomizationRequest, LightDomainRandomizationParameters, CameraDomainRandomizationParameters, ColorDomainRandomizationParameters
+
 import logging
 import os
 import random
 from defect.generation.core.writer.bmw_writer import BMWWriter
 from pxr import Sdf
 
+
 logger = logging.getLogger(__name__)
-
-
 
 def _create_randomizers():
 
     def move_defect(defect_objet: DefectObject, prim_path: str):
 
         semantic_label = defect_objet.args.get("semantic_label", "default")
-        rot_min = defect_objet.args.get("rot_min", 0)
-        rot_max = defect_objet.args.get("rot_max", 1)
+        rot_x_min = defect_objet.args.get("rot_x_min", 0)
+        rot_x_max = defect_objet.args.get("rot_x_max", 360)
+        rot_y_min = defect_objet.args.get("rot_y_min", 0)
+        rot_y_max = defect_objet.args.get("rot_y_max", 360)
+        rot_z_min = defect_objet.args.get("rot_z_min", 0)
+        rot_z_max = defect_objet.args.get("rot_z_max", 360)
         dim_h_min = defect_objet.args.get("dim_h_min", 0)
         dim_h_max = defect_objet.args.get("dim_h_max", 1)
         dim_w_min = defect_objet.args.get("dim_w_min", 0)
@@ -46,8 +50,8 @@ def _create_randomizers():
             rep.randomizer.scatter_2d(defect_prim, seed=random.randint(0, 999999))
             rep.modify.pose(
                 rotation=rep.distribution.uniform(
-                    (rot_min, 0, 90), 
-                    (rot_max, 0, 90)
+                    (rot_x_min, rot_y_min, rot_z_min), 
+                    (rot_x_max, rot_y_max, rot_z_max)
                 ),
                 scale=rep.distribution.uniform(
                     (1, dim_h_min,dim_w_min),
@@ -91,7 +95,7 @@ def _create_randomizers():
 
 
 def _create_camera():
-    camera = rep.create.camera()
+    camera = rep.create.camera(clipping_range=(0.001, 10000))
     logger.warning(f"Creating Camera: {camera}")
     return camera
 
@@ -123,6 +127,33 @@ def _create_camera_randomizer():
 
     rep.randomizer.register(change_camera)
 
+def _create_color_randomizer(color_domain_randomization_params): 
+    prim_colors = color_domain_randomization_params.prim_colors
+    if prim_colors is not None: 
+        created_materials = {}
+
+        for path, colors in prim_colors.items(): 
+            # Get all mesh children path
+            children_path = []
+            prim = get_prim(path)
+            if prim.GetTypeName() == "Xform":
+                children_path = get_all_children_paths(children_path, prim)
+            else:
+                children_path=[path]
+            
+            mats = rep.create.material_omnipbr(diffuse=rep.distribution.choice(colors, with_replacements=False), count=len(colors))
+            for child_path in children_path:
+                created_materials[str(child_path)] = mats
+        seed=random.randint(0, 999999)
+        def get_colors():
+            for prim_path, mat in created_materials.items():
+                prim = rep.get.prim_at_path(prim_path)
+                with prim:
+                    rep.randomizer.materials(mat, seed=seed)
+            return prim.node
+
+        rep.randomizer.register(get_colors)
+        
 
 def _create_defects(defect_objet: DefectObject, prim_path: str):
     semantic_label = defect_objet.args.get("semantic_label", "default")
@@ -132,6 +163,7 @@ def _create_defects(defect_objet: DefectObject, prim_path: str):
     cube = rep.create.cube(visible=False, semantics=[('class', semantic_label + '_mesh'),('uuid', defect_objet.uuid + '_mesh')], position=0, scale=1, rotation=(0, 0, 90))
     with target_prim:
         rep.create.projection_material(cube, [('class', semantic_label + '_projectmat'),('uuid', defect_objet.uuid + '_projectmat')])
+
 
 def create_defect_layer(defect_generation_request: DefectGenerationRequest, domain_randomization_request :DomainRandomizationRequest, frames: int = 1, output_dir: str = "_defects", rt_subframes: int = 0, use_seg: bool = False, use_bb: bool = True, use_bmw: bool =True):
     if len(defect_generation_request.texture_dir) <= 0:
@@ -144,6 +176,8 @@ def create_defect_layer(defect_generation_request: DefectGenerationRequest, doma
         # Create randomizers
         _create_randomizers()
         _create_camera_randomizer()
+        if domain_randomization_request.color_domain_randomization_params.active:
+            _create_color_randomizer(domain_randomization_request.color_domain_randomization_params)
         # Get camera params
         camera_randomization_params = domain_randomization_request.camera_domain_randomization_params.camera_prims
 
@@ -197,6 +231,7 @@ def create_defect_layer(defect_generation_request: DefectGenerationRequest, doma
                 for defect in prim_defect.defects:
                     if defect.defect_name not in defect_names:
                         defect_names.append(defect.defect_name)
+                        
             rep.WriterRegistry.register(BMWWriter)
             writer = rep.WriterRegistry.get("BMWWriter")
             writer.initialize(output_dir=output_dir, rgb=True, bounding_box_2d_tight=use_bb,semantic_segmentation=use_seg, defects=defect_names)
@@ -208,14 +243,19 @@ def create_defect_layer(defect_generation_request: DefectGenerationRequest, doma
 
         # Setup randomization
         with rep.trigger.on_frame(num_frames=frames, rt_subframes=rt_subframes):
+
             # Light domain randomization
             if domain_randomization_request.light_domain_randomization_params.active:
                 rep.randomizer.change_light(domain_randomization_request.light_domain_randomization_params)
             # Camera domain randomization
             if domain_randomization_request.camera_domain_randomization_params.active:
                 rep.randomizer.change_camera(change_camera_params, prim_defects_path, domain_randomization_request.camera_domain_randomization_params)
+            # Color domain randomization
+            if domain_randomization_request.color_domain_randomization_params.active:
+                rep.randomizer.get_colors()
             # Defects domain randomization
             for defect_prim_objects in defect_generation_request.prim_defects:
                 for defect in defect_prim_objects.defects:
                     rep.randomizer.move_defect(defect_objet=defect, prim_path=defect_prim_objects.prim_path)
                     rep.randomizer.change_defect_image(defect_objet=defect, texture_dir=defect_generation_request.texture_dir)
+
