@@ -18,11 +18,13 @@ from defect.generation.ui.widgets import PathWidget
 from defect.generation.utils.helpers import is_valid_prim, get_prim, check_path
 from pxr import Sdf
 from omni.kit.notification_manager import post_notification, NotificationStatus
+import logging
 
+logger = logging.getLogger(__name__)
 
 # Target Prim
 class ObjectParameters():
-    def __init__(self, defect_parameters_list = None):
+    def __init__(self, defect_parameters_list):
         self.defect_parameters_list = defect_parameters_list
         self.current_selected_prim = ui.SimpleStringModel()
         self.target_prim = None
@@ -43,11 +45,22 @@ class ObjectParameters():
 
     def on_add(self, fn):
         self.update_ui = fn
-
+        
     def build_ui(self):
         #creates empty _build
         self.target_prim = PathWidget("Target Prim")
 
+        ui.Button("Apply",  
+            style={"padding": 5}, 
+            clicked_fn=lambda: self.apply(self.target_prim.path_value), 
+            tooltip="Apply Primvars and Material to selected Prim."
+        )
+
+        with ui.HStack():
+            ui.Label(f"Current target prim")
+            ui.StringField(model=self.current_selected_prim, read_only=True)
+
+    def apply(self, target_prim_path):
         def _apply_primvars(prim):
             # Apply prim vars
             prim.CreateAttribute('primvars:d1_forward_vector', Sdf.ValueTypeNames.Float3, custom=True).Set((0,0,0))
@@ -57,32 +70,26 @@ class ObjectParameters():
             prim.CreateAttribute('primvars:v3_scale', Sdf.ValueTypeNames.Float3, custom=True).Set((0,0,0))
             post_notification(f"Applied Primvars to: {prim.GetPath()}", hide_after_timeout=True, duration=5, status=NotificationStatus.INFO)
 
-        def _apply():
-            prim_path = self.target_prim.path_value
+        if not check_path(target_prim_path):
+            return 
+        
+        # Check if prim is valid
+        prim = is_valid_prim(target_prim_path)
+        if prim is None:
+            return
 
-            if not check_path(prim_path):
-                return 
-            
-            # Check if prim is valid
-            prim = is_valid_prim(prim_path)
-            if prim is None:
-                return
-            
-            _apply_primvars(get_prim(prim_path))
-            self.apply_on_new_path()
 
-        ui.Button("Apply",  
-            style={"padding": 5}, 
-            clicked_fn=lambda: _apply(), 
-            tooltip="Apply Primvars and Material to selected Prim."
-        )
+        
+        _apply_primvars(get_prim(target_prim_path))
+        self.apply_on_new_path(target_prim_path)
 
-        with ui.HStack():
-            ui.Label(f"Current target prim")
-            ui.StringField(model=self.current_selected_prim, read_only=True)
-    def apply_on_new_path(self): 
-        self.defect_parameters_list[self.target_prim.path_value] = []
-        self.set_current_selected_prim(self.target_prim.path_value)
+
+
+
+    def apply_on_new_path(self, target_prim_path): 
+        if target_prim_path not in self.defect_parameters_list:
+            self.defect_parameters_list[target_prim_path] = []
+        self.set_current_selected_prim(target_prim_path)
         self.update_ui()
 
     def destroy(self):
