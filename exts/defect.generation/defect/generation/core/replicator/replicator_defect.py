@@ -14,10 +14,9 @@
 # limitations under the License.
 import omni.replicator.core as rep
 import carb
-from defect.generation.utils.helpers import get_textures, is_valid_prim, get_center_coordinates, fetch_all_defect_objects, find_prim_defect_by_uuid, get_prim, get_all_children_paths, get_current_stage
+from defect.generation.utils.helpers import get_textures, is_valid_prim, get_center_coordinates, fetch_all_defect_objects, find_prim_defect_by_uuid, get_prim, get_all_children_paths, get_current_stage,get_bbox_dimensions
 from defect.generation.domain.models.defect_generation_request import DefectGenerationRequest, DefectObject
 from defect.generation.domain.models.domain_randomization_request import DomainRandomizationRequest, LightDomainRandomizationParameters, CameraDomainRandomizationParameters, ColorDomainRandomizationParameters
-
 import logging
 import os
 import random
@@ -102,28 +101,20 @@ def _create_camera():
 def _create_camera_randomizer():
     def change_camera(change_camera_params, prim_defects_path, camera_domain_randomization_params: CameraDomainRandomizationParameters):
         for camera_option in change_camera_params:
-                
                 camera_randomization_params = camera_option["randomization"]
                 camera = camera_option["camera"]
-                scatter_prim_path, look_at_prim_path = camera_randomization_params
-
-                logger.warn(f"Scatter prim is {scatter_prim_path}")
-                logger.warn(f"Look at prim is {look_at_prim_path}")
-
-                if scatter_prim_path and not look_at_prim_path:
-                    logger.warning(f"Routed omni graph to [YES] scatter prim and [NO] look at prim ...")
-                    # Choose a random look at prim from all the prims which have defects
-                    look_at_prim_path = rep.distribution.choice(prim_defects_path, with_replacements=True)
-                elif not scatter_prim_path and look_at_prim_path:
+                scatter_prim_path, look_at_coordinates = camera_randomization_params
+                if not scatter_prim_path and look_at_coordinates :
                     logger.warning(f"Routed omni graph to [NO] scatter prim and [YES] look at prim...")
                     # Create a sphere scatter prim around the look at prim
-                    scatter_prim_path = rep.create.sphere(position=get_center_coordinates(look_at_prim_path), scale=camera_domain_randomization_params.camera_distance_max_value, visible=False)
+                    scatter_prim_path = rep.create.sphere(position=tuple((min_val + max_val) / 2 for min_val, max_val in zip(look_at_coordinates[0], look_at_coordinates[1])), scale=camera_domain_randomization_params.camera_distance_max_value, visible=False)
                 else:
                     # Using the provided scatter prim and look at prim
                     logger.warning(f"Routed omni graph to [YES] scatter prim and [YES] look at prim...")
+
                 with camera:
                     rep.randomizer.scatter_3d(scatter_prim_path, seed=random.randint(0, 999999))
-                    rep.modify.pose(look_at=look_at_prim_path)
+                    rep.modify.pose(look_at=rep.distribution.uniform(look_at_coordinates[0],look_at_coordinates[1]))
 
     rep.randomizer.register(change_camera)
 
@@ -173,6 +164,7 @@ def create_defect_layer(defect_generation_request: DefectGenerationRequest, doma
         change_camera_params = []
         render_list = []
         prim_defects_path = []
+        parent_prim_defects_path = []
         # Create randomizers
         _create_randomizers()
         _create_camera_randomizer()
@@ -185,6 +177,9 @@ def create_defect_layer(defect_generation_request: DefectGenerationRequest, doma
         for defect_prim_objects in defect_generation_request.prim_defects:
             # Add list of meshes with derfects
             prim = get_prim(defect_prim_objects.prim_path)
+            # Populate parent prim defects (Top level of defects)
+            parent_prim_defects_path.append(Sdf.Path(defect_prim_objects.prim_path))
+
             if prim.GetTypeName() == "Xform":
                 logger.warning(f"{defect_prim_objects.prim_path} is an Xform")
                 children = []
@@ -199,17 +194,27 @@ def create_defect_layer(defect_generation_request: DefectGenerationRequest, doma
 
         # Remove duplicate paths
         prim_defects_path = list(set(prim_defects_path))
-        logger.warning(f"All prims with defects: {prim_defects_path}")   
+        parent_prim_defects_path = list(set(parent_prim_defects_path))
+        logger.warning(f"All prims with defects: {prim_defects_path}, parent prims: {parent_prim_defects_path}")   
  
 
         # Camera scatter prim and lookat prim randomization
         if domain_randomization_request.camera_domain_randomization_params.active:
             # If no scatter prim or look at prim specified, create a look at prim for each defect
             if len(domain_randomization_request.camera_domain_randomization_params.camera_prims) == 0:
-                for prim_defect_path in prim_defects_path:
-                    camera_randomization_params.append((None, str(prim_defect_path)))
+                logger.warning(f"No camera parameters were specified, parent_paths are : {parent_prim_defects_path} ")
+                for prim_defect_path in parent_prim_defects_path:
+                    camera_randomization_params.append((None, get_bbox_dimensions(str(prim_defect_path))))
                 logger.warning(f"No camera prims were specified, new camera params: {camera_randomization_params}")
-            # Create cameras with randomization information
+            #Transform every (scatter_prim, None) in camera params into a scatter prim paired with every defect parent prim in the scene
+            for index, camera_param in enumerate(camera_randomization_params):
+                scatter_params = []
+                if not camera_param[1] and camera_param[0]:
+                    for prim_defect_path in parent_prim_defects_path:
+                        scatter_params.append((camera_param[0], get_bbox_dimensions(str(prim_defect_path))))
+                    camera_randomization_params.pop(index)
+                    camera_randomization_params.extend(scatter_params)
+                # Create cameras with randomization information
             for camera_param in camera_randomization_params:
                 camera = _create_camera()
                 change_camera_params.append({"camera": camera, "randomization": camera_param})

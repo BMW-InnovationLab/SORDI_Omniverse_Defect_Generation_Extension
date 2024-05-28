@@ -19,7 +19,7 @@ class LightDomainRandomizationParameters(BaseModel):
 class CameraDomainRandomizationParameters(BaseModel):
     camera_distance_min_value: List[float] = None
     camera_distance_max_value: List[float] = None
-    camera_prims: List[Tuple[str]] = None
+    camera_prims: List[Tuple[str,Tuple[Tuple[float, float, float], ...]]] = None
     active = False
 
 class ColorDomainRandomizationParameters(BaseModel):
