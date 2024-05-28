@@ -101,3 +101,10 @@ def rgba_to_hex(color):
     r, g, b = color
     hex = mpl.colors.rgb2hex((r, g, b), keep_alpha=False)
     return hex
+
+def get_bbox_dimensions(prim_path):
+    #Get the Top, Bottom, Left, Right Coordinates of a prim based on its path
+    bbox = omni.usd.get_context().compute_path_world_bounding_box(prim_path)
+    min_coordinates = bbox[0]
+    max_coordinates = bbox[1]
+    return min_coordinates,max_coordinates

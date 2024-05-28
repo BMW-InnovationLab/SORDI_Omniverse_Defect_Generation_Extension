@@ -20,6 +20,7 @@ import omni.usd
 import asyncio
 from omni.kit.window.filepicker import FilePickerDialog
 from omni.kit.widget.filebrowser import FileBrowserItem
+from omni.kit.notification_manager import post_notification, NotificationStatus
 
 class CustomDirectory:
     def __init__(self, label: str, tooltip: str = "", default_dir: str = "") -> None:
@@ -101,6 +102,7 @@ class CustomDirectory:
     def destroy(self):
         self._dir = None
 
+
 class MinMaxWidget:
     def __init__(self, label: str, min_value: float = 0, max_value: float = 1, tooltip: str = "") -> None:
         self._min_model = ui.SimpleFloatModel(min_value)
@@ -114,17 +116,31 @@ class MinMaxWidget:
         """
         Min Value of the UI
 
-        :type: int
+        :type: float
         """
+        if self._min_model.get_value_as_float() < 0:
+            post_notification(
+                f"Min Value: {self._min_model.get_value_as_float()} in {self._label_text} is less than 0. Setting it to 0.",
+                duration=5,
+                status=NotificationStatus.WARNING
+            )
+            self._min_model.set_value(0)
         return self._min_model.get_value_as_float()
-    
-    @property 
+
+    @property
     def max_value(self) -> float:
         """
         Max Value of the UI
 
-        :type: int
+        :type: float
         """
+        if self._max_model.get_value_as_float() < self.min_value:
+            post_notification(
+                f"Max Value: {self._max_model.get_value_as_float()} is less than Min Value: {self.min_value} in label {self._label_text}. Setting the Max Value to Min Value.",
+                duration=5,
+                status=NotificationStatus.WARNING
+            )
+            self._max_model.set_value(self.min_value)
         return self._max_model.get_value_as_float()
 
     def _build_min_max(self):
@@ -139,8 +155,39 @@ class MinMaxWidget:
     def destroy(self):
         self._max_model = None
         self._min_model = None
-    
-class RGBMinMaxWidget: 
+
+
+class PositionMinMaxWidget(MinMaxWidget):
+    def __init__(self, label: str, min_value: float = 0, max_value: float = 1, tooltip: str = ""):
+        super().__init__(label, min_value, max_value, tooltip)
+
+    @property
+    def min_value(self) -> float:
+        """
+        Min Value of the UI
+
+        :type: float
+        """
+        return self._min_model.get_value_as_float()
+
+    @property
+    def max_value(self) -> float:
+        """
+        Max Value of the UI
+
+        :type: float
+        """
+        if self._max_model.get_value_as_float() < self.min_value:
+            post_notification(
+                f"Max Value: {self._max_model.get_value_as_float()} is less than Min Value: {self.min_value} in label {self._label_text}. Setting the Max Value to Min Value.",
+                duration=5,
+                status=NotificationStatus.WARNING
+            )
+            self._max_model.set_value(self.min_value)
+        return self._max_model.get_value_as_float()
+
+
+class RGBMinMaxWidget:
     def __init__(self, label: str, min_r_value: float = 0, max_r_value: float = 1, min_g_value: float = 0, max_g_value: float = 1, min_b_value: float = 0, max_b_value: float = 1, tooltip: str = "") -> None:
         self._min_values = [min_r_value, min_g_value, min_b_value]
         self._max_values = [max_r_value, max_g_value, max_b_value]
@@ -157,6 +204,14 @@ class RGBMinMaxWidget:
 
         :type: List[float]
         """
+        for label , model in zip(["R", "G", "B"], self._min_models):
+            if model.get_value_as_float() < 0:
+                post_notification(
+                    f"Min Value : {model.get_value_as_float()}, in Channel {label} is Less than 0, Setting it to 0",
+                    duration=5,
+                    status=NotificationStatus.WARNING
+                )
+                model.set_value(0)
         return [model.get_value_as_float() for model in self._min_models]
     
     @property 
@@ -166,6 +221,15 @@ class RGBMinMaxWidget:
 
         :type: List[float]
         """
+        labels = ["R", "G", "B"]
+        for i in range(len(self._max_values)):
+            if self._max_models[i].get_value_as_float() < self._min_models[i].get_value_as_float():
+                post_notification(
+                    f"Max Value: {self._max_models[i].get_value_as_float()} is less than Min Value: {self.min_values[i]} in Channel {labels[i]}. Setting the Max Value to Min Value.",
+                    duration=5,
+                    status=NotificationStatus.WARNING
+                )
+                self._max_models[i].set_value(self.min_values[i])
         return [model.get_value_as_float() for model in self._max_models]
 
     def _build_min_max(self):

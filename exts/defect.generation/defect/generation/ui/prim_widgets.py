@@ -71,11 +71,13 @@ class ObjectParameters():
             post_notification(f"Applied Primvars to: {prim.GetPath()}", hide_after_timeout=True, duration=5, status=NotificationStatus.INFO)
 
         if not check_path(target_prim_path):
+            post_notification(f"You Need to Choose at Least One Target Prim to Apply",hide_after_timeout=True, duration=5, status=NotificationStatus.WARNING)
             return 
         
         # Check if prim is valid
         prim = is_valid_prim(target_prim_path)
         if prim is None:
+            post_notification(f"Please Select a Valid Prim to Apply Primvars on",hide_after_timeout=True, duration=5, status=NotificationStatus.WARNING)
             return
 
 

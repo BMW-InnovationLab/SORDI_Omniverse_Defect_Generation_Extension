@@ -347,24 +347,30 @@ class MainWindow(ui.Window):
 
     def _build_replicator_param(self):
         def _create_defect_layer(**kwargs):
-            prim_defect_objects = []
-            for prim_path, defects in self.defect_parameters_list.items():
-                # If prim not valid, skip it
-                if not is_valid_prim(prim_path):
-                    continue
-                # If primvars not applied, apply them
-                self.object_params.apply(prim_path)
-                for d in defects:
-                    for _ in range(int(d['args']['count'])):
-                        prim_defect_objects.append(PrimDefectObject(prim_path=prim_path, defects=[DefectObject(defect_name=d['defect_name'], args=d['args'], uuid=generate_small_uuid())]))
-        
-            defect_generation_request = DefectGenerationRequest(
-                        texture_dir=self.defect_text.directory,
-                        prim_defects = prim_defect_objects
-                    )
-            domain_randomization_request = self.randomizer_params.prepare_domain_randomization_request()
-            create_defect_layer(defect_generation_request, domain_randomization_request, **kwargs)
-            post_notification(f"Created defect layer with {len(self.defect_parameters_list)} total prims/groups and {sum(int(defect['args']['count']) for defects in self.defect_parameters_list.values() for defect in defects)} combined defects.", hide_after_timeout=True, duration=5, status=NotificationStatus.INFO)
+            if len(self.defect_text.directory) == 0 :
+                post_notification(
+                    f"Defect Texture Directory Cannot be Empty",
+                    hide_after_timeout=True, duration=5, status=NotificationStatus.WARNING)
+                carb.log_error("Defect Texture Directory Cannot be Empty")
+            else:
+                prim_defect_objects = []
+                for prim_path, defects in self.defect_parameters_list.items():
+                    # If prim not valid, skip it
+                    if not is_valid_prim(prim_path):
+                        continue
+                    # If primvars not applied, apply them
+                    self.object_params.apply(prim_path)
+                    for d in defects:
+                        for _ in range(int(d['args']['count'])):
+                            prim_defect_objects.append(PrimDefectObject(prim_path=prim_path, defects=[DefectObject(defect_name=d['defect_name'], args=d['args'], uuid=generate_small_uuid())]))
+
+                defect_generation_request = DefectGenerationRequest(
+                            texture_dir=self.defect_text.directory,
+                            prim_defects = prim_defect_objects
+                        )
+                domain_randomization_request = self.randomizer_params.prepare_domain_randomization_request()
+                create_defect_layer(defect_generation_request, domain_randomization_request, **kwargs)
+                post_notification(f"Created defect layer with {len(self.defect_parameters_list)} total prims/groups and {sum(int(defect['args']['count']) for defects in self.defect_parameters_list.values() for defect in defects)} combined defects.", hide_after_timeout=True, duration=5, status=NotificationStatus.INFO)
 
         def preview_data():
             if does_defect_layer_exist():
@@ -391,8 +397,9 @@ class MainWindow(ui.Window):
             
             #Remove projections
             for prim_path in list(self.defect_parameters_list.keys()):
-                delete_prim(f"{prim_path}/Projection")
-                logger.warning(f"Deleting : {prim_path}/Projection")
+                if is_valid_prim(f"{prim_path}/Projection"):
+                    delete_prim(f"{prim_path}/Projection")
+                    logger.warning(f"Deleting : {prim_path}/Projection")
 
 
 
@@ -400,14 +407,20 @@ class MainWindow(ui.Window):
             remove_replicator_graph()
             total_frames = self.frames.get_value_as_int()
             subframes = self.rt_subframes.get_value_as_int()
-            if subframes <= 0:
-                subframes = 0
+            if subframes < 1:
+                post_notification(
+                    f"Number of Subframes {subframes} Needs to Be Greater than 0. Setting the Value to 1",
+                    hide_after_timeout=True, duration=5, status=NotificationStatus.WARNING)
+                subframes = 1
             if total_frames > 0:
                 post_notification(f"Running replicator with {total_frames} total frames and {subframes} subframes.", hide_after_timeout=True, duration=5, status=NotificationStatus.INFO)
                 _create_defect_layer(output_dir = self.output_dir.directory, frames = total_frames,rt_subframes=subframes ,use_seg = self._use_seg.as_bool,use_bb= self._use_bb.as_bool, use_bmw = self._use_bmw.as_bool)
                 self.rep_layer_button.text = "Recreate Replicator Graph"
                 rep_run()
             else:
+                post_notification(
+                    f"Number of frames is {total_frames}. Input value needs to be greater than 0.",
+                    hide_after_timeout=True, duration=5, status=NotificationStatus.WARNING)
                 carb.log_error(f"Number of frames is {total_frames}. Input value needs to be greater than 0.")
         
         def create_replicator_graph():
