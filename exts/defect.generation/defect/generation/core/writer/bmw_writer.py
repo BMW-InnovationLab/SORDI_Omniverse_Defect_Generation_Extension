@@ -15,7 +15,7 @@ class BMWWriter(Writer):
             bounding_box_2d_tight: bool = False,
             semantic_segmentation: bool = False,
             image_output_format="png",
-            defects: List[str] = []
+            defects: List[str] = [],
     ):
         self._output_dir = output_dir
         self._backend = BackendDispatch({"paths": {"out_dir": output_dir}})
@@ -23,6 +23,7 @@ class BMWWriter(Writer):
         self._image_output_format = image_output_format
         self.annotators = []
         self.all_labels = defects
+        self.semantic_label_map = {}
 
         # RGB
         if rgb:
@@ -35,8 +36,13 @@ class BMWWriter(Writer):
 
         # Semantic Segmentation
         if semantic_segmentation:
-            self.annotators.append(AnnotatorRegistry.get_annotator("semantic_segmentation",
-                                                                   init_params={"colorize": True}))
+            self.annotators.append(AnnotatorRegistry.get_annotator(
+                "semantic_segmentation",
+                init_params={
+                    "colorize": False,
+                    "semanticTypes": ["class"]
+                }
+            ))
 
     def check_bbox_area(self, bbox_data, size_limit):
         length = abs(bbox_data['x_min'] - bbox_data['x_max'])
@@ -132,6 +138,7 @@ class BMWWriter(Writer):
                 semantic_data = data[semantic_segmentation_key]["data"]
                 id_to_labels = data[semantic_segmentation_key]["info"]["idToLabels"]
                 exists = False
+                segmentation_label_mapping_json = {}
 
             # Check if a defect exists in this image or not TODO: Do we want to keep images with no defects ?
                 for id, labels in id_to_labels.items():
@@ -141,17 +148,41 @@ class BMWWriter(Writer):
 
                 # Save semantic segmentation data in BMW Format
                 if exists:
+                    count = len(self.semantic_label_map)
                     numpy_data = semantic_data
                     json_data = id_to_labels
                     for key, value in json_data.items():
                         if '_' in value['class']:
                             new_class = value['class'].split('_')[0]
-                            value['class'] = new_class
+                            if new_class not in self.semantic_label_map:
+                                self.semantic_label_map[new_class] = count
+                                count +=1
+                            segmentation_label_mapping_json[self.semantic_label_map[new_class]] = {'class': new_class}
+                            semantic_data = [
+                                [self.semantic_label_map[new_class] if pixel == key else pixel for pixel in row]
+                                for row in semantic_data
+                            ]
+                        else:
+                            if value['class'] not in self.semantic_label_map:
+                                self.semantic_label_map[value['class']] = count
+                                count += 1
+                            segmentation_label_mapping_json[self.semantic_label_map[value['class']]] = {'class': value['class']}
+                            semantic_data = [
+                                [self.semantic_label_map[value['class']] if pixel == key else pixel for pixel in row]
+                                for row in semantic_data
+                            ]
+
+
+
+
+
+
+
                     filepath = f"{self._frame_id}"
 
                     # Write the label information to the json file
                     buf = io.BytesIO()
-                    buf.write(json.dumps(json_data).encode())
+                    buf.write(json.dumps(segmentation_label_mapping_json).encode())
                     self._backend.write_blob(os.path.join(semantic_segmentation_dir, filepath + ".json"), buf.getvalue())
 
                     # Write the semantic data values to the npy file
