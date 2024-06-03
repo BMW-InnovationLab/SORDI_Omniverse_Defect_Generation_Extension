@@ -14,15 +14,15 @@
 # limitations under the License.
 import omni.replicator.core as rep
 import carb
-from defect.generation.utils.helpers import get_textures, is_valid_prim, get_center_coordinates, fetch_all_defect_objects, find_prim_defect_by_uuid, get_prim, get_all_children_paths, get_current_stage,get_bbox_dimensions
+from defect.generation.utils.helpers import get_textures, get_prim, get_all_children_paths, get_bbox_dimensions, rgba_to_rgb_dict, copy_prim
 from defect.generation.domain.models.defect_generation_request import DefectGenerationRequest, DefectObject
 from defect.generation.domain.models.domain_randomization_request import DomainRandomizationRequest, LightDomainRandomizationParameters, CameraDomainRandomizationParameters, ColorDomainRandomizationParameters
 import logging
 import os
+import omni
 import random
 from defect.generation.core.writer.bmw_writer import BMWWriter
-from pxr import Sdf
-
+from pxr import Sdf, UsdShade, Usd, UsdGeom
 
 logger = logging.getLogger(__name__)
 
@@ -118,33 +118,156 @@ def _create_camera_randomizer():
 
     rep.randomizer.register(change_camera)
 
+def get_original_materials(path):
+    """
+    Get the original materials bound to mesh prims under a given path in the USD stage. It traverses the stage starting form the given path and collects the materials 
+    originally bound to the found meshes. It gathers unique materials and their corresponding shader names.
+
+    Parameters:
+        path (str): The USD path to start the traversal from.
+
+    Returns:
+        Tuple[List[str], Dict[str, str], Dict[str, str]]:
+            - List of children paths found under the given path and have Mesh type.
+            - Dictionary mapping each mesh prim path to its bound material path.
+            - Dictionary mapping each unique material path to its shader name.
+    """
+    stage = omni.usd.get_context().get_stage()
+
+    original_materials = {} 
+    unique_materials = {}
+    children_path = []
+
+    # Get all mesh children paths
+    prim = stage.GetPrimAtPath(path)
+    
+    if prim.GetTypeName() == "Xform":
+        found_mats = [str(x.GetPath()) for x in Usd.PrimRange(prim) if x.IsA(UsdGeom.Mesh)]
+        children_path = found_mats
+    else:
+        children_path= []
+
+    for child_path in children_path:
+        stage_prim = stage.GetPrimAtPath(child_path)
+
+        # Get original material bound to each child path in the stage
+        bind_mat_path = UsdShade.MaterialBindingAPI(stage_prim).ComputeBoundMaterial()
+        material_path = bind_mat_path[-1].GetForwardedTargets()[0]
+
+        # Store the original material
+        original_materials[child_path] = material_path
+
+        if material_path not in unique_materials:
+            material_prim = stage.GetPrimAtPath(material_path)
+
+            # Get the Shader of that material
+            shader_name = material_prim.GetAllChildrenNames()[0]
+            unique_materials[material_path] = shader_name 
+
+    return children_path, original_materials, unique_materials
+
 def _create_color_randomizer(color_domain_randomization_params): 
     prim_colors = color_domain_randomization_params.prim_colors
-    if prim_colors is not None: 
-        created_materials = {}
 
-        for path, colors in prim_colors.items(): 
-            # Get all mesh children path
-            children_path = []
-            prim = get_prim(path)
-            if prim.GetTypeName() == "Xform":
-                children_path = get_all_children_paths(children_path, prim)
-            else:
-                children_path=[path]
+    if prim_colors is not None: 
+        # Get RGB color values (OmmniPBR materials use RGB colors not RGBA)
+        prim_colors = rgba_to_rgb_dict(prim_colors)
+        
+        created_materials = {}
+        all_original_materials = {}
+
+        # Create an OmniPBR material with each specified color
+        for path in prim_colors: 
+                 
+            # Get all original materials of all selected prims
+            children_path, original_materials, unique_materials = get_original_materials(path)
             
+            colors = prim_colors[path]
             mats = rep.create.material_omnipbr(diffuse=rep.distribution.choice(colors, with_replacements=False), count=len(colors))
             for child_path in children_path:
                 created_materials[str(child_path)] = mats
+            
+            all_original_materials[path] = original_materials
+
         seed=random.randint(0, 999999)
         def get_colors():
             for prim_path, mat in created_materials.items():
                 prim = rep.get.prim_at_path(prim_path)
+                # Change the material applied on each prim to change the color
                 with prim:
                     rep.randomizer.materials(mat, seed=seed)
             return prim.node
 
         rep.randomizer.register(get_colors)
+    return all_original_materials
+
+def _create_texture_color_randomizer(color_domain_randomization_params): 
+    """
+    Creates textured color randomization by creating copies of the original materials bound to the selected prims and assigning new base colors to the copies.
+
+    Parameters:
+        color_domain_randomization_params: Parameters that include prim_colors
+
+    Returns:
+        Tuple[Dict[str, Dict[str, str]], Dict[str, Dict[str, List[str]]]]:
+            - A dictionary mapping each prim path to its original material.
+            - A dictionary mapping each parent prim path to the new createed material paths and the corresponding prim paths that they should be bound to.
+    """
+    prim_colors = color_domain_randomization_params.prim_colors
+    stage = omni.usd.get_context().get_stage()
+    mat_idx = 0
+
+    if prim_colors is not None:
+        created_materials = {}
+        omni_pbr_materials = {}
+        all_original_materials = {} 
         
+        for path in prim_colors:
+            
+            created_materials[path] = {}
+            omni_pbr_materials[path] = {}
+
+            # Get all original materials of all selected prims
+            children_path, original_materials, unique_materials = get_original_materials(path)
+           
+            # Create an copy of the material for each unique material
+            for material_path, shader_name in unique_materials.items():
+               
+                mat_path = f"/Replicator/Looks/OmniPBR_{mat_idx}"
+                copy_prim(material_path, mat_path)
+
+                # Create BaseColor input in new OmniPBR material
+                mat_prim = stage.GetPrimAtPath(f"{mat_path}/{shader_name}")
+                mat_prim.CreateAttribute("inputs:BaseColor", Sdf.ValueTypeNames.Float4)
+                omni_pbr_materials[path][material_path] = mat_path
+                created_materials[path][mat_path] = []
+                mat_idx+=1
+
+            # Store the OmniPBR material paths along with the prim paths that they will be bound to
+            for prim_path in children_path:
+
+                original_material = original_materials[prim_path]
+                omni_pbr_path = omni_pbr_materials[path][original_material]
+                created_materials[path][omni_pbr_path].append(prim_path)
+        
+            all_original_materials[path] = original_materials
+
+        def get_colors():
+            for parent_path in created_materials:
+                # Get a random color for all prims in the parent_path 
+                chosen_color = rep.distribution.choice(prim_colors[parent_path])
+
+                for material, prim_paths in created_materials[parent_path].items():
+                    # Apply the color to each material
+                    mat_prim = rep.get.prim_at_path(str(material))
+                    with mat_prim:
+                        rep.modify.attribute(name="inputs:BaseColor", value=chosen_color)
+
+            return mat_prim.node
+
+        rep.randomizer.register(get_colors)
+        return all_original_materials, created_materials
+
 
 def _create_defects(defect_objet: DefectObject, prim_path: str):
     semantic_label = defect_objet.args.get("semantic_label", "default")
@@ -157,6 +280,7 @@ def _create_defects(defect_objet: DefectObject, prim_path: str):
 
 
 def create_defect_layer(defect_generation_request: DefectGenerationRequest, domain_randomization_request :DomainRandomizationRequest, frames: int = 1, output_dir: str = "_defects", rt_subframes: int = 0, use_seg: bool = False, use_bb: bool = True, use_bmw: bool =True):
+    original_materials = None
     if len(defect_generation_request.texture_dir) <= 0:
         carb.log_error("No directory selected")
         return
@@ -169,7 +293,10 @@ def create_defect_layer(defect_generation_request: DefectGenerationRequest, doma
         _create_randomizers()
         _create_camera_randomizer()
         if domain_randomization_request.color_domain_randomization_params.active:
-            _create_color_randomizer(domain_randomization_request.color_domain_randomization_params)
+            if domain_randomization_request.color_domain_randomization_params.texture_randomization:
+                original_materials, created_materials = _create_texture_color_randomizer(domain_randomization_request.color_domain_randomization_params)
+            else:
+                original_materials = _create_color_randomizer(domain_randomization_request.color_domain_randomization_params)
         # Get camera params
         camera_randomization_params = domain_randomization_request.camera_domain_randomization_params.camera_prims
 
@@ -231,15 +358,18 @@ def create_defect_layer(defect_generation_request: DefectGenerationRequest, doma
         if use_bmw:
             # Create a list containing all the defect names present in scene.
             defect_names = []
-
+            semantic_labels = []
             for prim_defect in defect_generation_request.prim_defects:
                 for defect in prim_defect.defects:
                     if defect.defect_name not in defect_names:
                         defect_names.append(defect.defect_name)
+                    if defect.args.get("semantic_label", "default") not in semantic_labels:
+                        semantic_labels.append(defect.args.get("semantic_label", "default"))
+
                         
             rep.WriterRegistry.register(BMWWriter)
             writer = rep.WriterRegistry.get("BMWWriter")
-            writer.initialize(output_dir=output_dir, rgb=True, bounding_box_2d_tight=use_bb,semantic_segmentation=use_seg, defects=defect_names)
+            writer.initialize(output_dir=output_dir, rgb=True, bounding_box_2d_tight=use_bb,semantic_segmentation=use_seg, defects=semantic_labels)
         else:
             writer = rep.WriterRegistry.get("BasicWriter")
             writer.initialize(output_dir=output_dir, rgb=True, semantic_segmentation=use_seg, bounding_box_2d_tight=use_bb)
@@ -264,3 +394,11 @@ def create_defect_layer(defect_generation_request: DefectGenerationRequest, doma
                     rep.randomizer.move_defect(defect_objet=defect, prim_path=defect_prim_objects.prim_path)
                     rep.randomizer.change_defect_image(defect_objet=defect, texture_dir=defect_generation_request.texture_dir)
 
+            # Texture domain randomization
+            if domain_randomization_request.color_domain_randomization_params.texture_randomization:
+                for parent_path in created_materials:      
+                    for material, prim_paths in created_materials[parent_path].items():
+                        # Bind the material to the corresponding prim_paths
+                        rep.modify.material([material], input_prims = prim_paths)
+
+    return original_materials

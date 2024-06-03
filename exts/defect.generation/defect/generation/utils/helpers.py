@@ -84,7 +84,7 @@ def get_center_coordinates(prim_path: str):
     translate: Gf.Vec3d = matrix.ExtractTranslation()
     return translate
 
-def fetch_all_defect_objects(prim_defect_list: [PrimDefectObject]) -> List[DefectObject]:
+def fetch_all_defect_objects(prim_defect_list: List[PrimDefectObject]) -> List[DefectObject]:
     all_defect_objects = []
     for prim_defect in prim_defect_list:
         for defect in prim_defect.defects:
@@ -97,8 +97,8 @@ def find_prim_defect_by_uuid(prim_defects: List[PrimDefectObject], target_uuid: 
             if defect.uuid == target_uuid:
                 return prim_defect
 
-def rgba_to_hex(color):
-    r, g, b = color
+def rgb_to_hex(color):
+    r, g, b, _ = color
     hex = mpl.colors.rgb2hex((r, g, b), keep_alpha=False)
     return hex
 
@@ -108,3 +108,37 @@ def get_bbox_dimensions(prim_path):
     min_coordinates = bbox[0]
     max_coordinates = bbox[1]
     return min_coordinates,max_coordinates
+
+def rgba_to_rgb_dict(rgba_dict):
+    
+    # Convert RGBA values in a dictionary to RGB values and returns a dictionary where each key maps to a list of RGB tuples.
+    rgb_dict = {} 
+    for key, rgba_list in rgba_dict.items():
+        rgb_list = []  
+        for rgba in rgba_list:
+            # Extract the first three elements (RGB) from the RGBA tuple and append to the current RGB list
+            rgb = rgba[:3]  
+            rgb_list.append(rgb)  
+
+        rgb_dict[key] = rgb_list
+    return rgb_dict  
+
+def copy_prim(path_from: str, path_to: str): 
+    omni.kit.commands.execute('CopyPrim',
+        path_from=path_from,
+        path_to=path_to,
+        exclusive_select=False,
+        copy_to_introducing_layer=False)
+
+def restore_original_materials(original_materials): 
+    # Restore original materials for each prim
+    if original_materials is not None:
+        for parent_path in original_materials: 
+            for prim_path, material in original_materials[parent_path].items():
+                # Bind original material to prim
+                omni.kit.commands.execute('BindMaterial',
+                    material_path=str(material),
+                    prim_path=[prim_path],
+                    strength=['weakerThanDescendants'])
+
+

@@ -1,11 +1,8 @@
-import logging
-
 import omni.ui as ui
 from omni.ui import color as cl
 import omni.kit.notification_manager as nm
 from defect.generation.ui.widgets import MinMaxWidget, PathWidget, RGBMinMaxWidget, PositionMinMaxWidget
 from defect.generation.utils import helpers
-from omni.kit.notification_manager import post_notification, NotificationStatus
 from defect.generation.domain.models.domain_randomization_request import DomainRandomizationRequest, LightDomainRandomizationParameters, CameraDomainRandomizationParameters, ColorDomainRandomizationParameters
 MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW = 25
 
@@ -79,7 +76,9 @@ class RandomizerParameters():
         if self.color_cb.get_value_as_bool(): 
             color_domain_randomization_params.active = True
             if len(self.prim_colors) != 0:
-                color_domain_randomization_params.prim_colors = self.prim_colors            
+                color_domain_randomization_params.prim_colors = self.prim_colors   
+                if self.texture_randomization_cb.get_value_as_bool():
+                    color_domain_randomization_params.texture_randomization = True        
             else: 
                 color_domain_randomization_params.prim_colors = {}
 
@@ -262,15 +261,14 @@ class RandomizerParameters():
         self.color_prim_path = self.color_prim.path_value
         if self.color_prim_path!= "":
             if self.color_prim_path not in self.prim_colors:
-                self.prim_colors[self.color_prim_path] = [(r, g, b)]
+                self.prim_colors[self.color_prim_path] = [(r, g, b, a)]
             else:
                 # Add the color to the path if it is not already present  
-                if (r, g, b) not in self.prim_colors[self.color_prim_path]:
-                    self.prim_colors[self.color_prim_path].append((r, g, b))
+                if (r, g, b, a) not in self.prim_colors[self.color_prim_path]:
+                    self.prim_colors[self.color_prim_path].append((r, g, b, a))
                     nm.post_notification(f"Added new color: r={r:.4f}, g={g:.4f}, b={b:.4f} to {self.color_prim_path}", hide_after_timeout=True, duration=5, status=nm.NotificationStatus.INFO)
                 else:
                     nm.post_notification(f"Color: r={r:.4f}, g={g:.4f}, b={b:.4f} already exists for {self.color_prim_path}", hide_after_timeout=True, duration=5, status=nm.NotificationStatus.WARNING)
-
             self.update_added_colors_ui()
 
     def update_added_colors_ui(self): 
@@ -294,7 +292,7 @@ class RandomizerParameters():
                                 ui.Label(color_formatted, width=150, style={"color": 0xFF777777})
                         with ui.VStack():
                             for color in colors_list: 
-                                color_hex = helpers.rgba_to_hex(color)
+                                color_hex = helpers.rgb_to_hex(color)
                                 ui.Rectangle(
                                 width=21,
                                 height=21,
@@ -402,6 +400,10 @@ class RandomizerParameters():
                 self.color_params_frame = ui.CollapsableFrame("Color Randomization Parameters", height=0)
                 with self.color_params_frame: 
                     with ui.VStack(height=0):
+                        with ui.HStack():
+                            ui.Label("Texture Color Randomization", alignment=ui.Alignment.LEFT, tooltip="Keeps the texture of materials during color randomization. Note: Consider increasing subframes value as the process needs more time between frames.")
+                            self.texture_randomization_cb = ui.CheckBox(name="Texture Color Randomization",width=190).model
+
                         with ui.HStack(style={"margin": 3}, height=0, spacing=5):
                             self.color_prim = PathWidget("Color Prim")
                             ui.Label("RGB Color Picker", width=70, tooltip="Select color to be added to the current prim path.")

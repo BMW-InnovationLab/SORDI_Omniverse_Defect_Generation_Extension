@@ -28,12 +28,11 @@ from defect.generation.core.replicator.replicator_defect import create_defect_la
 from defect.generation.utils.replicator_utils import rep_preview, does_defect_layer_exist, rep_run, get_defect_layer
 from defect.generation.ui.prim_widgets import ObjectParameters
 from defect.generation.ui.defects.defect_types_factory import DefectUIFactory
-from defect.generation.utils.helpers import delete_prim, is_valid_prim, generate_small_uuid
+from defect.generation.utils.helpers import delete_prim, is_valid_prim, generate_small_uuid, restore_original_materials
 from defect.generation.ui.domain_randomization_widget import RandomizerParameters
 from defect.generation.utils.file_picker import open_file_dialog, click_open_json_startup
 from defect.generation.domain.models.defect_generation_request import DefectGenerationRequest, DefectObject, PrimDefectObject
 from omni.kit.notification_manager import post_notification, NotificationStatus
-from omni.kit.window.extensions.utils import open_file_using_os_default
 from pathlib import Path
 from functools import lru_cache
 import logging
@@ -346,6 +345,7 @@ class MainWindow(ui.Window):
             self.randomizer_params.build_randomization_ui()
 
     def _build_replicator_param(self):
+        self.original_materials = None
         def _create_defect_layer(**kwargs):
             if len(self.defect_text.directory) == 0 :
                 post_notification(
@@ -369,9 +369,9 @@ class MainWindow(ui.Window):
                             prim_defects = prim_defect_objects
                         )
                 domain_randomization_request = self.randomizer_params.prepare_domain_randomization_request()
-                create_defect_layer(defect_generation_request, domain_randomization_request, **kwargs)
+                self.original_materials = create_defect_layer(defect_generation_request, domain_randomization_request, **kwargs)
                 post_notification(f"Created defect layer with {len(self.defect_parameters_list)} total prims/groups and {sum(int(defect['args']['count']) for defects in self.defect_parameters_list.values() for defect in defects)} combined defects.", hide_after_timeout=True, duration=5, status=NotificationStatus.INFO)
-
+       
         def preview_data():
             if does_defect_layer_exist():
                 rep_preview()
@@ -381,6 +381,7 @@ class MainWindow(ui.Window):
         
         # TODO: Fix that so it supports target_prim
         def remove_replicator_graph():
+            restore_original_materials(self.original_materials)
             if get_defect_layer() is not None:
                 layer, pos = get_defect_layer()
                 omni.kit.commands.execute('RemoveSublayer',
