@@ -1,7 +1,6 @@
 import omni.ui as ui
 from defect.generation.ui.widgets import MinMaxWidget
 from defect.generation.ui.defects.defect_types.base_defect_ui import BaseDefectUI
-from omni.kit.notification_manager import post_notification, NotificationStatus
 
 class CracksUI(BaseDefectUI):
     def __init__(self) -> None:

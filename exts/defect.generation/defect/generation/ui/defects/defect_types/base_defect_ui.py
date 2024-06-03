@@ -1,6 +1,5 @@
 
 import omni.ui as ui
-from defect.generation.utils.helpers import generate_small_uuid
 from omni.kit.notification_manager import post_notification, NotificationStatus
 import carb
 

@@ -1,5 +1,4 @@
 import omni.replicator.core as rep
-import carb
 from defect.generation.utils.helpers import *
 
 
