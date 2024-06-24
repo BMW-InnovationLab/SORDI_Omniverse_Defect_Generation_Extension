@@ -387,10 +387,7 @@ class MainWindow(ui.Window):
                 omni.kit.commands.execute('RemoveSublayer',
                                           layer_identifier=layer.identifier,
                                           sublayer_position=pos)
-            # Remove Looks
-            if is_valid_prim('/World/Looks'):
-                delete_prim('/World/Looks')
-                logger.warning(f"Deleting : /World/Looks")
+
             # Remove replicator
             if is_valid_prim('/Replicator'):
                 delete_prim('/Replicator')

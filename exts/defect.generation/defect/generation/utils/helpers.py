@@ -109,6 +109,18 @@ def get_bbox_dimensions(prim_path):
     max_coordinates = bbox[1]
     return min_coordinates,max_coordinates
 
+
+def rgba_to_rgb_list(rgba_list):
+    # Convert RGBA values in a list to RGB values.
+
+    rgb_list = []
+
+    for rgba in rgba_list:
+        rgb = rgba[:3]
+        rgb_list.append(rgb)
+
+    return rgb_list
+
 def rgba_to_rgb_dict(rgba_dict):
     
     # Convert RGBA values in a dictionary to RGB values and returns a dictionary where each key maps to a list of RGB tuples.

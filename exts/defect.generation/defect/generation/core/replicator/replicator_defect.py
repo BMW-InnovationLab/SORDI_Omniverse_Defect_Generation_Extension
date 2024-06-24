@@ -14,7 +14,7 @@
 # limitations under the License.
 import omni.replicator.core as rep
 import carb
-from defect.generation.utils.helpers import get_textures, get_prim, get_all_children_paths, get_bbox_dimensions, rgba_to_rgb_dict, copy_prim
+from defect.generation.utils.helpers import get_textures, get_prim, get_all_children_paths, get_bbox_dimensions, rgba_to_rgb_dict, copy_prim, rgba_to_rgb_list
 from defect.generation.domain.models.defect_generation_request import DefectGenerationRequest, DefectObject
 from defect.generation.domain.models.domain_randomization_request import DomainRandomizationRequest, LightDomainRandomizationParameters, CameraDomainRandomizationParameters, ColorDomainRandomizationParameters
 import logging
@@ -118,6 +118,7 @@ def _create_camera_randomizer():
 
     rep.randomizer.register(change_camera)
 
+
 def get_original_materials(path):
     """
     Get the original materials bound to mesh prims under a given path in the USD stage. It traverses the stage starting form the given path and collects the materials 
@@ -134,35 +135,38 @@ def get_original_materials(path):
     """
     stage = omni.usd.get_context().get_stage()
 
-    original_materials = {} 
+    original_materials = {}
     unique_materials = {}
     children_path = []
 
     # Get all mesh children paths
     prim = stage.GetPrimAtPath(path)
-    
+
     if prim.GetTypeName() == "Xform":
         found_mats = [str(x.GetPath()) for x in Usd.PrimRange(prim) if x.IsA(UsdGeom.Mesh)]
         children_path = found_mats
     else:
-        children_path= []
+        children_path = [path]
 
     for child_path in children_path:
         stage_prim = stage.GetPrimAtPath(child_path)
+        try:
+            # Get original material bound to each child path in the stage
+            bind_mat_path = UsdShade.MaterialBindingAPI(stage_prim).ComputeBoundMaterial()
+            material_path = bind_mat_path[-1].GetForwardedTargets()[0]
 
-        # Get original material bound to each child path in the stage
-        bind_mat_path = UsdShade.MaterialBindingAPI(stage_prim).ComputeBoundMaterial()
-        material_path = bind_mat_path[-1].GetForwardedTargets()[0]
+            if material_path not in unique_materials:
+                material_prim = stage.GetPrimAtPath(material_path)
+                # Get the Shader of that material
+                shader_name = material_prim.GetAllChildrenNames()[0]
+                unique_materials[material_path] = shader_name
 
-        # Store the original material
-        original_materials[child_path] = material_path
+            # Store the original material
+            original_materials[child_path] = material_path
 
-        if material_path not in unique_materials:
-            material_prim = stage.GetPrimAtPath(material_path)
-
-            # Get the Shader of that material
-            shader_name = material_prim.GetAllChildrenNames()[0]
-            unique_materials[material_path] = shader_name 
+        except Exception as e:
+            carb.log_error(
+                f"Failed to get material for {child_path}: {e}. Check if material has been assigned to this prim.")
 
     return children_path, original_materials, unique_materials
 
@@ -211,7 +215,7 @@ def _create_texture_color_randomizer(color_domain_randomization_params):
     Returns:
         Tuple[Dict[str, Dict[str, str]], Dict[str, Dict[str, List[str]]]]:
             - A dictionary mapping each prim path to its original material.
-            - A dictionary mapping each parent prim path to the new createed material paths and the corresponding prim paths that they should be bound to.
+            - A dictionary mapping each parent prim path to the new created material paths and the corresponding prim paths that they should be bound to.
     """
     prim_colors = color_domain_randomization_params.prim_colors
     stage = omni.usd.get_context().get_stage()
@@ -220,48 +224,57 @@ def _create_texture_color_randomizer(color_domain_randomization_params):
     if prim_colors is not None:
         created_materials = {}
         omni_pbr_materials = {}
-        all_original_materials = {} 
-        
+        all_original_materials = {}
+        material_color_attribute = {}
+
         for path in prim_colors:
-            
             created_materials[path] = {}
             omni_pbr_materials[path] = {}
-
             # Get all original materials of all selected prims
             children_path, original_materials, unique_materials = get_original_materials(path)
-           
-            # Create an copy of the material for each unique material
+
+            # Create a copy of the material for each unique material
             for material_path, shader_name in unique_materials.items():
-               
                 mat_path = f"/Replicator/Looks/OmniPBR_{mat_idx}"
                 copy_prim(material_path, mat_path)
 
-                # Create BaseColor input in new OmniPBR material
                 mat_prim = stage.GetPrimAtPath(f"{mat_path}/{shader_name}")
-                mat_prim.CreateAttribute("inputs:BaseColor", Sdf.ValueTypeNames.Float4)
+
+                # Check if the original material uses diffuse_color_constant (usually for Simple Meshes) or BaseColor input
+                color_attribute = stage.GetPrimAtPath(f"{material_path}/{shader_name}").GetAttribute("inputs:diffuse_color_constant").Get()
+
+                if color_attribute is not None:
+                    color_attribute_name = "inputs:diffuse_color_constant"
+                    prim_colors[path] = rgba_to_rgb_list(prim_colors[path])
+                    mat_prim.CreateAttribute("inputs:diffuse_color_constant", Sdf.ValueTypeNames.Float3)
+
+                else:
+                    color_attribute_name = "inputs:BaseColor"
+                    mat_prim.CreateAttribute("inputs:BaseColor", Sdf.ValueTypeNames.Float4)
+
+                material_color_attribute[mat_path] = color_attribute_name
                 omni_pbr_materials[path][material_path] = mat_path
                 created_materials[path][mat_path] = []
-                mat_idx+=1
+                mat_idx += 1
 
             # Store the OmniPBR material paths along with the prim paths that they will be bound to
             for prim_path in children_path:
-
                 original_material = original_materials[prim_path]
                 omni_pbr_path = omni_pbr_materials[path][original_material]
                 created_materials[path][omni_pbr_path].append(prim_path)
-        
+
             all_original_materials[path] = original_materials
 
         def get_colors():
             for parent_path in created_materials:
-                # Get a random color for all prims in the parent_path 
+                # Get a random color for all prims in the parent_path
                 chosen_color = rep.distribution.choice(prim_colors[parent_path])
-
-                for material, prim_paths in created_materials[parent_path].items():
-                    # Apply the color to each material
-                    mat_prim = rep.get.prim_at_path(str(material))
-                    with mat_prim:
-                        rep.modify.attribute(name="inputs:BaseColor", value=chosen_color)
+                for material, prim_path in created_materials[parent_path].items():
+                        # Apply the color to each material using the correct color attribute
+                        color_attribute_name = material_color_attribute[material]
+                        mat_prim = rep.get.prim_at_path(str(material))
+                        with mat_prim:
+                            rep.modify.attribute(name=color_attribute_name, value=chosen_color)
 
             return mat_prim.node
 
