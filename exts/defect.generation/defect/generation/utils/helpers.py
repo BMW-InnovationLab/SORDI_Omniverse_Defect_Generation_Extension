@@ -58,6 +58,21 @@ def get_textures(dir_path, png_type=".png"):
     textures.sort()
     return textures
 
+def list_mdl_materials(dir_path):
+    base_url = dir_path
+    mats = omni.client.list(base_url)
+    list_entries = []
+    for entry in mats[1]:
+        if entry.relative_path != ".thumbs":
+            mat_path = os.path.join(base_url, entry.relative_path)
+            if mat_path.endswith(".mdl"):
+                list_entries.append(mat_path)
+            elif "." not in mat_path:  # Check if the entry is a directory and not .mdl file
+                list_entries.extend(list_mdl_materials(mat_path))  # Recurse into subdirectory
+
+    return list_entries
+
+
 def get_prim(prim_path: str):
     stage = get_current_stage()
     prim = stage.GetPrimAtPath(prim_path)
@@ -110,16 +125,17 @@ def get_bbox_dimensions(prim_path):
     return min_coordinates,max_coordinates
 
 
-def rgba_to_rgb_list(rgba_list):
+def rgba_to_rgb_list(rgba_list): 
     # Convert RGBA values in a list to RGB values.
 
     rgb_list = []
 
-    for rgba in rgba_list:
+    for rgba in rgba_list: 
         rgb = rgba[:3]
         rgb_list.append(rgb)
-
+        
     return rgb_list
+
 
 def rgba_to_rgb_dict(rgba_dict):
     
@@ -141,16 +157,30 @@ def copy_prim(path_from: str, path_to: str):
         path_to=path_to,
         exclusive_select=False,
         copy_to_introducing_layer=False)
+ 
+def create_material(material_url: str, material_name: str, material_path: str, select_new_prim: bool=False):
+
+    omni.kit.commands.execute('CreateMdlMaterialPrimCommand',
+        mtl_url=material_url,               # This can be path to local or remote MDL
+        mtl_name=material_name,             # sourceAsset:subIdentifier (i.e. the name of the material within the MDL)
+        mtl_path=material_path,             # Prim path for the Material to create.
+        select_new_prim=select_new_prim     # If to select the new created material after creation. Default is False.
+    )
+    created_material_path = str(omni.usd.get_context().get_selection().get_selected_prim_paths()[0])
+    return created_material_path
+
+def bind_material(material_path, prim_path):
+  # Bind original material to prim
+    omni.kit.commands.execute('BindMaterial',
+        material_path=str(material_path),
+        prim_path=[prim_path],
+        strength=['weakerThanDescendants'])
 
 def restore_original_materials(original_materials): 
     # Restore original materials for each prim
     if original_materials is not None:
         for parent_path in original_materials: 
-            for prim_path, material in original_materials[parent_path].items():
-                # Bind original material to prim
-                omni.kit.commands.execute('BindMaterial',
-                    material_path=str(material),
-                    prim_path=[prim_path],
-                    strength=['weakerThanDescendants'])
-
-
+            parent_materials = original_materials[parent_path] 
+            if parent_materials is not None and len(parent_materials)>1:
+                for child_path, material_path in original_materials[parent_path].items(): 
+                        bind_material(material_path, child_path)

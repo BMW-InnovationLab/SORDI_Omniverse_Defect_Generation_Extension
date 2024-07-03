@@ -388,6 +388,7 @@ class MainWindow(ui.Window):
                                           layer_identifier=layer.identifier,
                                           sublayer_position=pos)
 
+
             # Remove replicator
             if is_valid_prim('/Replicator'):
                 delete_prim('/Replicator')

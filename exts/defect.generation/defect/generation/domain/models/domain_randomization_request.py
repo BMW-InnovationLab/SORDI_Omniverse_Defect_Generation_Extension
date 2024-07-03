@@ -27,6 +27,10 @@ class ColorDomainRandomizationParameters(BaseModel):
     texture_randomization = False
     active = False
 
+class MaterialDomainRandomizationParameters(BaseModel): 
+    material_prims: Dict[str, List[str]] = None
+    active = False
+
 class DomainRandomizationRequest(BaseModel):
     # Light params
     light_domain_randomization_params: LightDomainRandomizationParameters
@@ -34,3 +38,5 @@ class DomainRandomizationRequest(BaseModel):
     camera_domain_randomization_params: CameraDomainRandomizationParameters
     # Color params
     color_domain_randomization_params: ColorDomainRandomizationParameters
+    # Material params
+    material_domain_randomization_params: MaterialDomainRandomizationParameters

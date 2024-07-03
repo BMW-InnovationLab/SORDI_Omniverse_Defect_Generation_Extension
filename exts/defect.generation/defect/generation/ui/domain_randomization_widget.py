@@ -1,10 +1,10 @@
 import omni.ui as ui
 from omni.ui import color as cl
 import omni.kit.notification_manager as nm
-from defect.generation.ui.widgets import MinMaxWidget, PathWidget, RGBMinMaxWidget, PositionMinMaxWidget
+from defect.generation.ui.widgets import MinMaxWidget, PathWidget, RGBMinMaxWidget, PositionMinMaxWidget, CustomDirectory
 from defect.generation.utils import helpers
-from defect.generation.domain.models.domain_randomization_request import DomainRandomizationRequest, LightDomainRandomizationParameters, CameraDomainRandomizationParameters, ColorDomainRandomizationParameters
-MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW = 25
+from defect.generation.domain.models.domain_randomization_request import DomainRandomizationRequest, LightDomainRandomizationParameters, CameraDomainRandomizationParameters, ColorDomainRandomizationParameters, MaterialDomainRandomizationParameters
+MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW = 30
 
 class RandomizerParameters():
     def __init__(self) -> None:
@@ -23,6 +23,9 @@ class RandomizerParameters():
         # Color Params
         self.prim_colors = {}
         
+        # Material Params 
+        self.material_prims = {} 
+
         self.build_randomization_ui()
 
     def prepare_domain_randomization_request(self) -> DomainRandomizationRequest:
@@ -30,6 +33,7 @@ class RandomizerParameters():
         camera_domain_randomization_params = CameraDomainRandomizationParameters()
 
         color_domain_randomization_params = ColorDomainRandomizationParameters()
+        material_domain_randomization_params = MaterialDomainRandomizationParameters()
 
         if self.light_cb.get_value_as_bool():
                 light_domain_randomization_params.active = True
@@ -82,10 +86,18 @@ class RandomizerParameters():
             else: 
                 color_domain_randomization_params.prim_colors = {}
 
+        if self.material_cb.get_value_as_bool(): 
+            material_domain_randomization_params.active = True
+            if len(self.material_prims) != 0:
+                material_domain_randomization_params.material_prims = self.material_prims   
+            else: 
+                material_domain_randomization_params.material_prims = {}
+
         return DomainRandomizationRequest(
             light_domain_randomization_params=light_domain_randomization_params,
             camera_domain_randomization_params=camera_domain_randomization_params,
-            color_domain_randomization_params=color_domain_randomization_params
+            color_domain_randomization_params=color_domain_randomization_params,
+            material_domain_randomization_params=material_domain_randomization_params
         )
 
     def add_randomization_checkbox(self, name, callback):
@@ -203,11 +215,11 @@ class RandomizerParameters():
                 
                 for scattering, lookat in self.camera_params_list:
                     with ui.HStack(height=0):
-                        ui.Label(f"{str(scattering)[:MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW]}{'...' if len(str(scattering))>MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW else ''}", width=225, style={"color": 0xFF777777})
+                        ui.Label(f"{str(scattering)[:MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW]}{'...' if len(str(scattering))>MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW else ''}", width=225, style={"color": 0xFF777777},tooltip=str(scattering))
                         if not isinstance(lookat, tuple):
                             ui.Label(
                                 f"{str(lookat)[:MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW]}{'...' if len(str(lookat)) > MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW else ''}",
-                                width=225, style={"color": 0xFF777777})
+                                width=225, style={"color": 0xFF777777},tooltip=str(lookat))
                             if lookat != "":
                                 look_at_range = helpers.get_bbox_dimensions(lookat)
                                 center_coords = tuple( round((min_val + max_val) /2,3) for min_val, max_val in zip(look_at_range[0], look_at_range[1]))
@@ -278,18 +290,18 @@ class RandomizerParameters():
 
             with self.color_params_list_ui:
                 with ui.HStack(spacing=2):
-                    ui.Label("Prim Path", width = 150)
-                    ui.Label("RGB Value", width = 150)
-                    ui.Label("RGB Color", width = 150)
+                    ui.Label("Prim Path", width = 225)
+                    ui.Label("RGB Value", width = 225)
+                    ui.Label("RGB Color", width = 225)
 
                 ui.Line(height=ui.Length(20))
                 for i, (path, colors_list) in enumerate(self.prim_colors.items()):
                     with ui.HStack(height=0):
-                        ui.Label(str(path)[:MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW], width=150, style={"color": 0xFF777777})
+                        ui.Label(f"{str(path)[:MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW]}{'...' if len(str(path)) > MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW else ''}", width=225, style={"color": 0xFF777777},tooltip=str(path))
                         with ui.VStack():
                             for color in colors_list: 
                                 color_formatted = f"{color[0]:.2f}, {color[1]:.2f}, {color[2]:.2f}"
-                                ui.Label(color_formatted, width=150, style={"color": 0xFF777777})
+                                ui.Label(color_formatted, width=225, style={"color": 0xFF777777})
                         with ui.VStack():
                             for color in colors_list: 
                                 color_hex = helpers.rgb_to_hex(color)
@@ -314,8 +326,60 @@ class RandomizerParameters():
         # Remove all colors and all their prims
             self.prim_colors = {}
             self.update_added_colors_ui()
-#--------------------------------------------------------end color fns---------------------------------------------------------------------------------------#
 
+#--------------------------------------------------------end color fns---------------------------------------------------------------------------------------#
+    def update_added_materials_ui(self):
+        self.added_material_params_frame.visible=True
+        with self.added_material_params_frame: 
+            self.materials_params_list_ui.clear()
+
+            with self.materials_params_list_ui:
+                with ui.HStack(spacing=2):
+                    ui.Label("Prim Path", width = 225)
+                    ui.Label("Materials Folder Path", width = 225)
+
+                ui.Line(height=ui.Length(20))
+                for prim_path, folder_paths in self.material_prims.items(): 
+                    with ui.HStack(height=0):
+                        ui.Label(f"{str(prim_path)[:MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW]}{'...' if len(str(prim_path))>MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW else ''}", width=225, style={"color": 0xFF777777},tooltip=str(prim_path))
+                        with ui.VStack():
+                            for folder_path in folder_paths: 
+                                ui.Label(f"{str(folder_path)[:MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW]}{'...' if len(str(folder_path))>MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW else ''}", width=225, style={"color": 0xFF777777}, tooltip=str(folder_path))
+
+                    ui.Line(height=ui.Length(20))
+                ui.Button("Reset all", tooltip="Reset all picked colors and all prims", clicked_fn=self.reset_all_materials)
+
+    def add_material(self):
+        
+        # Add Material Randomization 
+        self.material_prim_path = self.material_prim.path_value
+        self.material_folder_path = self.material_folder.directory
+        if self.material_prim_path!= "" and self.material_folder_path != "": 
+            if self.material_prim_path not in self.material_prims:
+                self.material_prims[self.material_prim_path] = [self.material_folder_path]
+            else:
+                if self.material_folder_path not in self.material_prims[self.material_prim_path]:
+                    self.material_prims[self.material_prim_path].append(self.material_folder_path)
+
+            nm.post_notification(f"Added new material randomization from folder {self.material_folder_path} to {self.material_prim_path}", hide_after_timeout=True, duration=5, status=nm.NotificationStatus.INFO)
+            self.update_added_materials_ui()
+        else:             
+            nm.post_notification("Please Select a Prim and a Materials Folder before Adding",  hide_after_timeout=True, duration=5, status=nm.NotificationStatus.WARNING)
+
+    def reset_material(self):
+        # Remove all materials for the selected prims
+
+        if self.material_prim.path_value in self.material_prims:
+            del self.material_prims[self.material_prim.path_value]
+            self.update_added_materials_ui()
+
+    def reset_all_materials(self):
+        # Remove all selected prims and all their materials folder paths
+            self.material_prims = {}
+            self.update_added_materials_ui()
+
+        
+#--------------------------------------------------------end material fns---------------------------------------------------------------------------------------#
 
     # Build the Light Params in the UI when the Light Checkbox is clicked. 
     def build_light_ui(self):        
@@ -434,7 +498,49 @@ class RandomizerParameters():
                     self.color_cb = ui.CheckBox(name = "Color Randomization", width=200).model
                     self.color_cb.add_value_changed_fn(lambda _: self.build_color_ui())
     
+    def build_materials_ui(self):
+        # If Materials Randomization is Checked
+        if self.material_cb.get_value_as_bool(): 
+            with self.material_params: 
+                self.material_params_frame = ui.CollapsableFrame("Materials Randomization Parameters", height=0)
+                with self.material_params_frame:
+                    with ui.VStack(height=0):
+                        
+                        self.material_prim = PathWidget("Material Prim", tooltip="Prim to apply materials randomization on.")
+
+                        self.material_folder = CustomDirectory("Material Folder",
+                                default_dir=str(),
+                                tooltip="A folder location containing a single or set of materials (.mdl)")
+                       
+                        with ui.HStack():
+                            ui.Button("Add", tooltip="Add Material Randomization", clicked_fn=self.add_material)
+                            ui.Button("Reset", tooltip="Reset Material Randomization", clicked_fn=self.reset_material)
+                        
+                        self.added_material_params_frame = ui.CollapsableFrame("Added Material Params", visible=False)
+                        with self.added_material_params_frame:
+                            self.materials_params_list_ui = ui.VStack()
+                            with self.materials_params_list_ui:
+                                with ui.HStack(spacing=2):
+                                    ui.Label("Prim Path", width = 150)
+                                    ui.Label("Materials Folder Path", width = 150)
+                                ui.Line(height=ui.Length(20))
+                        if self.material_prims != {}: 
+                            self.update_added_materials_ui()
+
+        # If Color Randomization is Unchecked
+        else: 
+            self.material_params.clear()
+            with self.material_params: 
+                with ui.HStack():
+                    ui.Label("Material Randomizations")
+                    self.material_cb = ui.CheckBox(name = "Material Randomization", width=200).model
+                    self.material_cb.add_value_changed_fn(lambda _: self.build_materials_ui())
+
+
+
+
     def build_randomization_ui(self):
         self.light_params, self.light_cb = self.add_randomization_checkbox("Light", lambda _: self.build_light_ui())
         self.camera_params, self.camera_cb = self.add_randomization_checkbox("Camera", lambda _: self.build_camera_ui())
         self.color_params, self.color_cb = self.add_randomization_checkbox("Color", lambda _: self.build_color_ui())
+        self.material_params, self.material_cb = self.add_randomization_checkbox("Material", lambda _: self.build_materials_ui())
