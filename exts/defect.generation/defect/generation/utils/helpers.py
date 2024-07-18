@@ -158,9 +158,19 @@ def copy_prim(path_from: str, path_to: str):
     omni.kit.commands.execute('CopyPrim',
         path_from=path_from,
         path_to=path_to,
-        exclusive_select=False,
+        exclusive_select=True,
         copy_to_introducing_layer=False)
- 
+    
+    copied_path = str(omni.usd.get_context().get_selection().get_selected_prim_paths()[0])
+    return copied_path
+
+def create_prim_with_default_xform(prim_type: str, prim_path: str):
+    omni.kit.commands.execute('CreatePrimWithDefaultXform',
+        prim_type=prim_type,
+        prim_path=prim_path,
+        attributes={},
+        select_new_prim=True)
+    
 def create_color_attr(material_path, color_attr_name, color_attr_type):
     # Creates a color attribute input with specific name and type for the material specified by material_path. 
     # This ensures that the attribute will remain linked to the material during runtime. 

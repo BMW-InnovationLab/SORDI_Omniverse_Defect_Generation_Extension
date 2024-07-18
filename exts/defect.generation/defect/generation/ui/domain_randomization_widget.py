@@ -393,6 +393,8 @@ class RandomizerParameters():
             self.update_added_materials_ui()
             if helpers.is_valid_prim('/Created_Materials'):
                 helpers.delete_prim('/Created_Materials')
+            if helpers.is_valid_prim('/Copied_Stage_Materials'):
+                helpers.delete_prim('/Copied_Stage_Materials')
 
     def select_from_stage(self): 
         if self.from_stage_cb.get_value_as_bool(): 
@@ -417,8 +419,13 @@ class RandomizerParameters():
                         # Get all mesh children paths
                         prim = helpers.get_current_stage().GetPrimAtPath(material_folder)
                         found_mats = helpers.get_all_children_paths([], prim)
+                        # Create scope prim that will jold the copied materials 
+                        helpers.create_prim_with_default_xform("Scope", "/Copied_Stage_Materials")
                         for mat in found_mats:
-                            self.created_materials[material_prim].append(mat)
+                            # Iterate through every material in selected stage materials and copy to created scope.
+                            material_name = str(mat).split("/")[-1]
+                            copied_path = helpers.copy_prim(mat, f"/Copied_Stage_Materials/{material_name}")
+                            self.created_materials[material_prim].append(copied_path)
 
                     # If materials are from a browsed directory, create them in the stage
                     else: 
@@ -431,7 +438,7 @@ class RandomizerParameters():
                             # Get actual stage path of the created material's shader and append it to list of created materials. 
                             created_material_shader = str(helpers.get_current_stage().GetPrimAtPath(created_material_path).GetChildren()[0].GetPath())
                             self.created_materials[material_prim].append(created_material_path)
-
+                print(f"created_materials {self.created_materials}")
                 nm.post_notification(f"Loaded Materials from {material_folder}", hide_after_timeout=True, duration=5, status=nm.NotificationStatus.INFO)
 
         # When Load Materials button is pressed, schedule the create materials coroutine (go()) to be executed asynchrounously without blocking the main thread. 

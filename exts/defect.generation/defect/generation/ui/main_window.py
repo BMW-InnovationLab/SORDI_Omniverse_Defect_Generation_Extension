@@ -401,6 +401,35 @@ class MainWindow(ui.Window):
                     logger.warning(f"Deleting : {prim_path}/Projection")
 
 
+        def delete_replicator_graph():
+            restore_original_materials(self.original_materials)
+            if get_defect_layer() is not None:
+                layer, pos = get_defect_layer()
+                omni.kit.commands.execute('RemoveSublayer',
+                                          layer_identifier=layer.identifier,
+                                          sublayer_position=pos)
+
+            # Remove replicator
+            if is_valid_prim('/Replicator'):
+                delete_prim('/Replicator')
+                logger.warning(f"Deleting : /Replicator")
+            
+            #Remove projections
+            for prim_path in list(self.defect_parameters_list.keys()):
+                if is_valid_prim(f"{prim_path}/Projection"):
+                    delete_prim(f"{prim_path}/Projection")
+                    logger.warning(f"Deleting : {prim_path}/Projection")
+
+            #Remove Created materials
+            if is_valid_prim("/Created_Materials"):
+                delete_prim('/Created_Materials')
+                logger.warning(f"Deleting : /Created_Materials")
+                
+            #Remove Copied materials
+            if is_valid_prim("/Copied_Stage_Materials"):
+                delete_prim('/Copied_Stage_Materials')
+                logger.warning(f"Deleting : /Copied_Stage_Materials")
+
 
         def run_replicator():
             remove_replicator_graph()
@@ -456,7 +485,7 @@ class MainWindow(ui.Window):
                                                 clicked_fn=lambda: create_replicator_graph(), 
                                                 tooltip="Creates/Recreates the Replicator Graph, based on the current Defect Parameters")
                 self.rep_delete_layer_button = ui.Button("Delete Replicator Layer", 
-                                        clicked_fn=lambda: remove_replicator_graph(), 
+                                        clicked_fn=lambda: delete_replicator_graph(), 
                                         tooltip="Deletes the Replicator Graph and all relevant components")
             with ui.HStack(height=0):
                 ui.Button("Preview", width=0, clicked_fn=lambda: preview_data(),
