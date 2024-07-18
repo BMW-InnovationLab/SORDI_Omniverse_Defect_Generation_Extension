@@ -91,7 +91,20 @@ data_defects/
    * Press the `Reset All` button to delete all color randomization entries after adding at least one entry.
    
 ![Loading pc](./exts/defect.generation/data/extension_preview_8.png)
+4. **Material Randomizations**: 
+   * Click on the `Material Randomization Parameters` drop down to show/hide the material randomization UI. 
+   * Select the prim for which you want to apply material randomizations to in the stage, and press the `Copy` button next to `Material Prim` in the UI. 
+   * To select the materials you want to randomize, there are two options that can be used either separately or together: 
+      - To use materials already found in the stage, check the `Select From Stage` checkbox. A new section called `Materials from stage` will appear, where you can select the materials from the stage and press the `Copy` button. 
+      - To Browse for materials in your nucleus or local directories, simply click the `Browse` button next to `Material Folder` and select the material folder of your choice. 
+   * After selecting the material folder and material prim to apply the randomization on, click the `Add`Button. A UI with the selected Prim Paths and Material folder Paths will appear. 
+   * To remove a material folder for a specific prim, click the `Reset` button. 
+   * To remove all material folders for all prims, click the `Reset All` button.
+   * Finally, click the `Load Materials` button to load all the selected materials in the stage, and create those that are not in the stage. 
 
+**Note**: Material randomization and color randomization can be applied together, meaning the color of the newly selected materials will be randomized as well. To do this, make sure you select `Texture Color Randomization` in the Color Randomization Parameters, and add the colors for the prim you would like to have the randomizations on. It is important to note that randomizing the colors of these materials is done by searching through a list of common color attributes found in *color_attributes.json* in *exts/defect.generation/defect/generation/utils/color_attributes.json*, and applying the selected colors to the found attributes. 
+
+![Loading pc](./exts/defect.generation/data/extension_preview_9.png)
 * ## Adding the Replicator Parameters
 
 1. **Import the Output Directory**:
