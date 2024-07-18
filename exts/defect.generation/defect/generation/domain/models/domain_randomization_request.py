@@ -29,6 +29,7 @@ class ColorDomainRandomizationParameters(BaseModel):
 
 class MaterialDomainRandomizationParameters(BaseModel): 
     material_prims: Dict[str, List[str]] = None
+    created_materials: Dict[str, List[str]] = None
     active = False
 
 class DomainRandomizationRequest(BaseModel):

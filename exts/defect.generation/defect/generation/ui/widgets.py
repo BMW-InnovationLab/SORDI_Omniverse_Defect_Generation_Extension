@@ -42,7 +42,7 @@ class CustomDirectory:
         with ui.HStack(height=0, tooltip=self._tooltip):
             ui.Label(self._label_text)
             ui.StringField(model=self._dir)
-            ui.Button("Browse", width=0, style={"padding": 5}, clicked_fn=self.click_open_file_dialog_dir)
+            ui.Button("Browse", width=ui.Percent(9), style={"padding": 5}, clicked_fn=self.click_open_file_dialog_dir)
 
     
     def open_dir_dialog(self, callable_fn: Callable):
@@ -306,7 +306,7 @@ class PathWidget:
         with self._top_stack:
             ui.Label(self._label_text)
             ui.StringField(model=self._path_model, read_only=self._read_only)
-            self._button = ui.Button(self._button_label, width=0, style={"padding": 5}, clicked_fn=lambda: copy(), tooltip="Copies the Current Selected Path in the Stage")
+            self._button = ui.Button(self._button_label, width=ui.Percent(9), style={"padding": 5}, clicked_fn=lambda: copy(), tooltip="Copies the Current Selected Path in the Stage")
    
 
     def destroy(self):

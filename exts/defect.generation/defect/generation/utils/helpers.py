@@ -18,10 +18,11 @@ import omni.usd
 import carb
 import omni.kit.commands
 import os
-from pxr import Usd, Gf
+from pxr import Usd, Gf, Sdf
 from defect.generation.domain.models.defect_generation_request import PrimDefectObject, DefectObject
 import matplotlib as mpl
-
+import json
+import inspect
 def get_current_stage():
     context = omni.usd.get_context()
     stage = context.get_stage()
@@ -113,9 +114,15 @@ def find_prim_defect_by_uuid(prim_defects: List[PrimDefectObject], target_uuid: 
                 return prim_defect
 
 def rgb_to_hex(color):
-    r, g, b, _ = color
-    hex = mpl.colors.rgb2hex((r, g, b), keep_alpha=False)
-    return hex
+    # Check if the input color is in RGB or RGBA format
+    if len(color) == 3:
+        r, g, b = color
+    elif len(color) == 4:
+        r, g, b, _ = color
+    else:
+        raise ValueError("Color input must be an RGB or RGBA tuple")
+    hex_color = mpl.colors.rgb2hex((r, g, b), keep_alpha=False)
+    return hex_color
 
 def get_bbox_dimensions(prim_path):
     #Get the Top, Bottom, Left, Right Coordinates of a prim based on its path
@@ -127,18 +134,14 @@ def get_bbox_dimensions(prim_path):
 
 def rgba_to_rgb_list(rgba_list): 
     # Convert RGBA values in a list to RGB values.
-
     rgb_list = []
-
     for rgba in rgba_list: 
         rgb = rgba[:3]
         rgb_list.append(rgb)
-        
     return rgb_list
 
 
 def rgba_to_rgb_dict(rgba_dict):
-    
     # Convert RGBA values in a dictionary to RGB values and returns a dictionary where each key maps to a list of RGB tuples.
     rgb_dict = {} 
     for key, rgba_list in rgba_dict.items():
@@ -158,15 +161,41 @@ def copy_prim(path_from: str, path_to: str):
         exclusive_select=False,
         copy_to_introducing_layer=False)
  
-def create_material(material_url: str, material_name: str, material_path: str, select_new_prim: bool=False):
+def create_color_attr(material_path, color_attr_name, color_attr_type):
+    # Creates a color attribute input with specific name and type for the material specified by material_path. 
+    # This ensures that the attribute will remain linked to the material during runtime. 
+    mat_prim = get_current_stage().GetPrimAtPath(Sdf.Path(material_path))
 
+    if color_attr_type == "float[3]": 
+        # Initialize with default RGB values
+        value = (0.0, 0.0, 0.0)                
+        color_type = Sdf.ValueTypeNames.Color3f
+    else: 
+        # Initialize with default RGBA values
+        value = (0.0, 0.0, 0.0, 0.0)
+        color_type = Sdf.ValueTypeNames.Color4f
+
+    with Sdf.ChangeBlock():
+        omni.usd.create_material_input(
+            mat_prim,
+            color_attr_name,
+            value, 
+            color_type
+            )
+            
+async def create_material(material_url: str, material_name: str, material_path: str, select_new_prim: bool=False):
+    # Asynchronously create a material from an mdl file. 
     omni.kit.commands.execute('CreateMdlMaterialPrimCommand',
         mtl_url=material_url,               # This can be path to local or remote MDL
         mtl_name=material_name,             # sourceAsset:subIdentifier (i.e. the name of the material within the MDL)
         mtl_path=material_path,             # Prim path for the Material to create.
         select_new_prim=select_new_prim     # If to select the new created material after creation. Default is False.
     )
+    
     created_material_path = str(omni.usd.get_context().get_selection().get_selected_prim_paths()[0])
+    await omni.kit.app.get_app().next_update_async()
+    selection = omni.usd.get_context().get_selection()
+    await omni.kit.app.get_app().next_update_async()
     return created_material_path
 
 def bind_material(material_path, prim_path):
@@ -178,9 +207,31 @@ def bind_material(material_path, prim_path):
 
 def restore_original_materials(original_materials): 
     # Restore original materials for each prim
+    print(f'original materials {original_materials}')
     if original_materials is not None:
         for parent_path in original_materials: 
             parent_materials = original_materials[parent_path] 
-            if parent_materials is not None and len(parent_materials)>1:
+            if parent_materials is not None and len(parent_materials)>0:
                 for child_path, material_path in original_materials[parent_path].items(): 
                         bind_material(material_path, child_path)
+
+def search_color_properties(properties_list):
+    # Search for color attributes specified in the color_attributes.json file from the list of all attributes of a material. 
+
+    # Get JSON File path
+    dir_path = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+    json_file_path = os.path.join(dir_path, 'color_attributes.json')
+
+    with open(json_file_path, 'r') as file:
+        color_inputs = json.load(file)["color_inputs"]
+
+    result = {}
+    # Iterate through each property or attribute in the list of all attributes
+    for property in properties_list:
+        # Get this property’s name with all namespace prefixes removed
+        property = property.GetBaseName()
+        for color_input in color_inputs:
+            # If the material's color attribute is found in the json file, append to result.
+            if property == color_input["name"]:
+                result[property] = color_input['type']
+    return result

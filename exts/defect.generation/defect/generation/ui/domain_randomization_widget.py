@@ -1,6 +1,8 @@
 import omni.ui as ui
 from omni.ui import color as cl
 import omni.kit.notification_manager as nm
+from pxr import Sdf
+import asyncio
 from defect.generation.ui.widgets import MinMaxWidget, PathWidget, RGBMinMaxWidget, PositionMinMaxWidget, CustomDirectory
 from defect.generation.utils import helpers
 from defect.generation.domain.models.domain_randomization_request import DomainRandomizationRequest, LightDomainRandomizationParameters, CameraDomainRandomizationParameters, ColorDomainRandomizationParameters, MaterialDomainRandomizationParameters
@@ -25,6 +27,7 @@ class RandomizerParameters():
         
         # Material Params 
         self.material_prims = {} 
+        self.created_materials = {}
 
         self.build_randomization_ui()
 
@@ -92,6 +95,7 @@ class RandomizerParameters():
                 material_domain_randomization_params.material_prims = self.material_prims   
             else: 
                 material_domain_randomization_params.material_prims = {}
+            material_domain_randomization_params.created_materials = self.created_materials
 
         return DomainRandomizationRequest(
             light_domain_randomization_params=light_domain_randomization_params,
@@ -335,10 +339,12 @@ class RandomizerParameters():
 
             with self.materials_params_list_ui:
                 with ui.HStack(spacing=2):
-                    ui.Label("Prim Path", width = 225)
-                    ui.Label("Materials Folder Path", width = 225)
+                    ui.Label("Prim Path", width = 150)
+                    ui.Label("Materials Path", width = 150)
+
 
                 ui.Line(height=ui.Length(20))
+                print(self.material_prims)
                 for prim_path, folder_paths in self.material_prims.items(): 
                     with ui.HStack(height=0):
                         ui.Label(f"{str(prim_path)[:MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW]}{'...' if len(str(prim_path))>MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW else ''}", width=225, style={"color": 0xFF777777},tooltip=str(prim_path))
@@ -347,16 +353,24 @@ class RandomizerParameters():
                                 ui.Label(f"{str(folder_path)[:MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW]}{'...' if len(str(folder_path))>MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW else ''}", width=225, style={"color": 0xFF777777}, tooltip=str(folder_path))
 
                     ui.Line(height=ui.Length(20))
-                ui.Button("Reset all", tooltip="Reset all picked colors and all prims", clicked_fn=self.reset_all_materials)
+                with ui.HStack():
+                    ui.Button("Load Materials", tooltip="Load all materials in the stage", clicked_fn=self.load_all_materials)
+                    ui.Button("Reset all", tooltip="Reset all materials and all prims", clicked_fn=self.reset_all_materials)
 
     def add_material(self):
-        
         # Add Material Randomization 
         self.material_prim_path = self.material_prim.path_value
+        if self.from_stage_cb.get_value_as_bool():
+            self.material_stage_path = self.material_folder_stage.path_value
+        else: 
+            self.material_stage_path = ""
         self.material_folder_path = self.material_folder.directory
-        if self.material_prim_path!= "" and self.material_folder_path != "": 
+        if (self.material_prim_path!= "" and self.material_folder_path != "") or (self.material_prim_path!="" and self.material_stage_path !=""): 
             if self.material_prim_path not in self.material_prims:
-                self.material_prims[self.material_prim_path] = [self.material_folder_path]
+                if self.material_folder_path != "":
+                    self.material_prims[self.material_prim_path] = [self.material_folder_path]
+                if self.material_stage_path != "": 
+                    self.material_prims[self.material_prim_path] = [self.material_stage_path]
             else:
                 if self.material_folder_path not in self.material_prims[self.material_prim_path]:
                     self.material_prims[self.material_prim_path].append(self.material_folder_path)
@@ -377,8 +391,52 @@ class RandomizerParameters():
         # Remove all selected prims and all their materials folder paths
             self.material_prims = {}
             self.update_added_materials_ui()
+            if helpers.is_valid_prim('/Created_Materials'):
+                helpers.delete_prim('/Created_Materials')
 
-        
+    def select_from_stage(self): 
+        if self.from_stage_cb.get_value_as_bool(): 
+            self.stage_materials_frame.visible = True
+            with self.stage_materials_frame:
+                self.material_folder_stage = PathWidget("Materials From Stage", tooltip="Select the materials you want to randomize from the stage")
+        else: 
+            self.stage_materials_frame.visible = False
+            self.stage_materials_frame.clear()
+
+    def load_all_materials(self): 
+        async def go():
+            for material_prim, material_folders in self.material_prims.items():
+
+                if material_prim not in self.created_materials:
+                    self.created_materials[material_prim] = []
+                
+                # List all .mdl material urls in the material_folders and create MDL material prims from them
+                for material_folder in material_folders:
+                    # If stage materials: 
+                    if helpers.is_valid_prim(material_folder): 
+                        # Get all mesh children paths
+                        prim = helpers.get_current_stage().GetPrimAtPath(material_folder)
+                        found_mats = helpers.get_all_children_paths([], prim)
+                        for mat in found_mats:
+                            self.created_materials[material_prim].append(mat)
+
+                    # If materials are from a browsed directory, create them in the stage
+                    else: 
+                        material_paths = helpers.list_mdl_materials(material_folder)
+                        for material_url in material_paths:
+                            material_name = str(material_url).split("/")[-1].split(".")[0]
+                            material_path = Sdf.Path(f'/Created_Materials/{material_name}')
+                            # Asynchrounously create the listed materials in the stage under Created_Materials folder
+                            created_material_path = await helpers.create_material(str(material_url), material_name, material_path, True)
+                            # Get actual stage path of the created material's shader and append it to list of created materials. 
+                            created_material_shader = str(helpers.get_current_stage().GetPrimAtPath(created_material_path).GetChildren()[0].GetPath())
+                            self.created_materials[material_prim].append(created_material_path)
+
+                nm.post_notification(f"Loaded Materials from {material_folder}", hide_after_timeout=True, duration=5, status=nm.NotificationStatus.INFO)
+
+        # When Load Materials button is pressed, schedule the create materials coroutine (go()) to be executed asynchrounously without blocking the main thread. 
+        asyncio.ensure_future(go())
+
 #--------------------------------------------------------end material fns---------------------------------------------------------------------------------------#
 
     # Build the Light Params in the UI when the Light Checkbox is clicked. 
@@ -505,17 +563,22 @@ class RandomizerParameters():
                 self.material_params_frame = ui.CollapsableFrame("Materials Randomization Parameters", height=0)
                 with self.material_params_frame:
                     with ui.VStack(height=0):
-                        
-                        self.material_prim = PathWidget("Material Prim", tooltip="Prim to apply materials randomization on.")
+                        with ui.HStack():
+                            ui.Label("Select Materials From Stage")
+                            self.from_stage_cb = ui.CheckBox(name="From Stage", width=ui.Percent(54)).model
+                            self.from_stage_cb.add_value_changed_fn(lambda _: self.select_from_stage())
+                        self.stage_materials_frame = ui.VStack(visible = False)
 
                         self.material_folder = CustomDirectory("Material Folder",
                                 default_dir=str(),
                                 tooltip="A folder location containing a single or set of materials (.mdl)")
-                       
+                        
+                        self.material_prim = PathWidget("Material Prim", tooltip="Prim to apply materials randomization on.")
+
                         with ui.HStack():
                             ui.Button("Add", tooltip="Add Material Randomization", clicked_fn=self.add_material)
                             ui.Button("Reset", tooltip="Reset Material Randomization", clicked_fn=self.reset_material)
-                        
+                
                         self.added_material_params_frame = ui.CollapsableFrame("Added Material Params", visible=False)
                         with self.added_material_params_frame:
                             self.materials_params_list_ui = ui.VStack()
