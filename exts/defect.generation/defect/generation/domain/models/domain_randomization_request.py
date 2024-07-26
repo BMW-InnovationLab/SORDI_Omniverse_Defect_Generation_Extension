@@ -23,7 +23,7 @@ class CameraDomainRandomizationParameters(BaseModel):
     active = False
 
 class ColorDomainRandomizationParameters(BaseModel):
-    prim_colors: Dict[str, List[Tuple[float, float, float]]] = None
+    prim_colors: Dict[str, List[Tuple[float, float, float, float]]] = None
     texture_randomization = False
     active = False
 

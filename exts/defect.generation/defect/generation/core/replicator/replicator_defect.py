@@ -228,6 +228,7 @@ def _create_texture_color_randomizer(color_domain_randomization_params):
         all_original_materials = {}
         material_color_attribute = {}
         color_attribute_name = ""
+        texture_colors = prim_colors
 
         for path in prim_colors:
             created_materials[path] = {}
@@ -255,8 +256,8 @@ def _create_texture_color_randomizer(color_domain_randomization_params):
                     color_attributes = search_color_properties(mat_prim.GetAttributes())
                     for attr_name, attr_type in color_attributes.items(): 
                         create_color_attr(mat_path,attr_name,attr_type)
-                        if attr_type == "float[3]":
-                            prim_colors[path] = rgba_to_rgb_list(prim_colors[path])
+                        if attr_type == "float3":
+                            texture_colors[path] = rgba_to_rgb_list(prim_colors[path])
                         material_color_attribute[mat_path].append(attr_name)
                 else: 
                     # Original material does not exist, Create a new OmniPBR Material
@@ -264,7 +265,7 @@ def _create_texture_color_randomizer(color_domain_randomization_params):
                     mat_path = str(mat.get_input('primsIn')[0])
                     # OmniPBR Materials have "inputs:diffuse_color_constant" color property, wich takes RGB values. 
                     color_attribute_name = "inputs:diffuse_color_constant"
-                    prim_colors[path] = rgba_to_rgb_list(prim_colors[path])
+                    texture_colors[path] = rgba_to_rgb_list(prim_colors[path])
                     material_color_attribute[mat_path] = [color_attribute_name]
                 
                 omni_pbr_materials[path][material_path] = mat_path
@@ -282,7 +283,7 @@ def _create_texture_color_randomizer(color_domain_randomization_params):
         def get_colors():
             for parent_path in created_materials:
                 # Get a random color for all prims in the parent_path
-                chosen_color = rep.distribution.choice(prim_colors[parent_path])
+                chosen_color = rep.distribution.choice(texture_colors[parent_path])
                 for material, prim_path in created_materials[parent_path].items():
                     # Apply the color to each material using the correct color attribute
                     color_attribute_name = material_color_attribute[material]
@@ -357,15 +358,14 @@ def _create_material_randomizer(material_randomization_params, prim_colors):
                             shader_path = mat_path    
                         # Append this material to list of materials that will be used for randomization                   
                         materials.append(mat_path)
-                        for attr_name, attr_type in color_attr.items():  
+                        # Determine if we need RGB or RGBA colors
+                        use_rgba = any(attr_type == "float4" for attr_type in color_attr.values())
+                        colors = prim_colors if use_rgba else rgba_to_rgb_dict(prim_colors)
+                        
+                        # Get a random color from the selected colors and modify the shader's respective attributes. 
+                        chosen_color = rep.distribution.choice(colors[prim_path])
+                        for attr_name, attr_type in color_attr.items(): 
                             attr_name = f"inputs:{attr_name}"
-                            # Check if attribute type uses RGB (float[3]) or RGBA (float[4]) values. 
-                            if attr_type == "float[3]":
-                                colors = rgba_to_rgb_dict(prim_colors)
-                            else:
-                                colors = prim_colors
-                            # Get a random color from the selected colors and modify the shader's respective attributes. 
-                            chosen_color = rep.distribution.choice(colors[prim_path])
                             rep.modify.attribute(name=attr_name, value=chosen_color, input_prims = shader_path)
                     else: 
                         logger.warning(f'Material {mat_path} has no color attributes.')
@@ -527,5 +527,4 @@ def create_defect_layer(defect_generation_request: DefectGenerationRequest, doma
                     for material, prim_paths in created_textures[parent_path].items():
                         # Bind the material to the corresponding prim_paths
                         rep.modify.material([material], input_prims = prim_paths)
-
     return all_original_textures       

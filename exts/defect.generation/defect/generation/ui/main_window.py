@@ -403,6 +403,7 @@ class MainWindow(ui.Window):
 
         def delete_replicator_graph():
             restore_original_materials(self.original_materials)
+            self.randomizer_params.created_materials = {}
             if get_defect_layer() is not None:
                 layer, pos = get_defect_layer()
                 omni.kit.commands.execute('RemoveSublayer',

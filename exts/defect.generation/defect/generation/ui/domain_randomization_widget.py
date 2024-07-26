@@ -294,19 +294,19 @@ class RandomizerParameters():
 
             with self.color_params_list_ui:
                 with ui.HStack(spacing=2):
-                    ui.Label("Prim Path", width = 225)
-                    ui.Label("RGB Value", width = 225)
-                    ui.Label("RGB Color", width = 225)
+                    ui.Label("Prim Path", width = ui.Percent(33))
+                    ui.Label("RGB Value", width = ui.Percent(33))
+                    ui.Label("RGB Color", width = ui.Percent(33))
 
                 ui.Line(height=ui.Length(20))
                 for i, (path, colors_list) in enumerate(self.prim_colors.items()):
                     with ui.HStack(height=0):
-                        ui.Label(f"{str(path)[:MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW]}{'...' if len(str(path)) > MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW else ''}", width=225, style={"color": 0xFF777777},tooltip=str(path))
+                        ui.Label(f"{str(path)[:MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW]}{'...' if len(str(path)) > MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW else ''}", width= ui.Percent(33), style={"color": 0xFF777777},tooltip=str(path))
                         with ui.VStack():
                             for color in colors_list: 
                                 color_formatted = f"{color[0]:.2f}, {color[1]:.2f}, {color[2]:.2f}"
-                                ui.Label(color_formatted, width=225, style={"color": 0xFF777777})
-                        with ui.VStack():
+                                ui.Label(color_formatted, width= ui.Percent(33), style={"color": 0xFF777777})
+                        with ui.VStack(width=ui.Percent(33)):
                             for color in colors_list: 
                                 color_hex = helpers.rgb_to_hex(color)
                                 ui.Rectangle(
@@ -339,18 +339,18 @@ class RandomizerParameters():
 
             with self.materials_params_list_ui:
                 with ui.HStack(spacing=2):
-                    ui.Label("Prim Path", width = 150)
-                    ui.Label("Materials Path", width = 150)
+                    ui.Label("Prim Path", width = ui.Percent(50))
+                    ui.Label("Materials Path", width = ui.Percent(50))
 
 
                 ui.Line(height=ui.Length(20))
                 print(self.material_prims)
                 for prim_path, folder_paths in self.material_prims.items(): 
                     with ui.HStack(height=0):
-                        ui.Label(f"{str(prim_path)[:MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW]}{'...' if len(str(prim_path))>MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW else ''}", width=225, style={"color": 0xFF777777},tooltip=str(prim_path))
+                        ui.Label(f"{str(prim_path)[:MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW]}{'...' if len(str(prim_path))>MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW else ''}", width=ui.Percent(50), style={"color": 0xFF777777},tooltip=str(prim_path))
                         with ui.VStack():
                             for folder_path in folder_paths: 
-                                ui.Label(f"{str(folder_path)[:MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW]}{'...' if len(str(folder_path))>MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW else ''}", width=225, style={"color": 0xFF777777}, tooltip=str(folder_path))
+                                ui.Label(f"{str(folder_path)[:MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW]}{'...' if len(str(folder_path))>MAX_NUMBER_PRIM_PATH_CHARACTERS_TO_SHOW else ''}", width=ui.Percent(50), style={"color": 0xFF777777}, tooltip=str(folder_path))
 
                     ui.Line(height=ui.Length(20))
                 with ui.HStack():
@@ -390,6 +390,7 @@ class RandomizerParameters():
     def reset_all_materials(self):
         # Remove all selected prims and all their materials folder paths
             self.material_prims = {}
+            self.created_materials = {}
             self.update_added_materials_ui()
             if helpers.is_valid_prim('/Created_Materials'):
                 helpers.delete_prim('/Created_Materials')
@@ -408,9 +409,9 @@ class RandomizerParameters():
     def load_all_materials(self): 
         async def go():
             for material_prim, material_folders in self.material_prims.items():
-
                 if material_prim not in self.created_materials:
                     self.created_materials[material_prim] = []
+                    found_mats=[]
                 
                 # List all .mdl material urls in the material_folders and create MDL material prims from them
                 for material_folder in material_folders:
@@ -418,7 +419,11 @@ class RandomizerParameters():
                     if helpers.is_valid_prim(material_folder): 
                         # Get all mesh children paths
                         prim = helpers.get_current_stage().GetPrimAtPath(material_folder)
-                        found_mats = helpers.get_all_children_paths([], prim)
+                        # If one material was selected not a folder
+                        if prim.GetTypeName() == 'Material': 
+                            found_mats = [prim.GetPath()]
+                        else:
+                            found_mats = helpers.get_all_children_paths([], prim)
                         # Create scope prim that will jold the copied materials 
                         helpers.create_prim_with_default_xform("Scope", "/Copied_Stage_Materials")
                         for mat in found_mats:
@@ -547,9 +552,9 @@ class RandomizerParameters():
                             self.color_params_list_ui = ui.VStack()
                             with self.color_params_list_ui:
                                 with ui.HStack(spacing=2):
-                                    ui.Label("Prim Path", width = 150)
-                                    ui.Label("RGB Value", width = 150)
-                                    ui.Label("RGB Color", width = 150)
+                                    ui.Label("Prim Path", width = ui.Percent(25))
+                                    ui.Label("RGB Value", width = ui.Percent(25))
+                                    ui.Label("RGB Color", width = ui.Percent(25))
                                 ui.Line(height=ui.Length(20))
                         if self.prim_colors != {}: 
                             self.update_added_colors_ui()

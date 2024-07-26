@@ -2,67 +2,67 @@
   "color_inputs": [
     {
       "name": "BaseColor",
-      "type": "float[4]"
+      "type": "float4"
     },
     {
       "name": "diffuse_color_constant",
-      "type": "float[3]"
+      "type": "float3"
     },
     {
       "name": "basecolor_vp",
-      "type": "float[4]"
+      "type": "float4"
     },
     {
       "name": "emissivecolor",
-      "type": "float[4]"
+      "type": "float4"
     },
     {
       "name": "base_color",
-      "type": "float[3]"
+      "type": "float3"
     },
     {
       "name": "Tint",
-      "type": "float[4]"
+      "type": "float4"
     },
     {
       "name": "emissive_color",
-      "type": "float[3]"
+      "type": "float3"
     },
     {
       "name": "BaseColorInt",
-      "type": "float[4]"
+      "type": "float4"
     },
     {
       "name": "Color",
-      "type": "float[4]"
+      "type": "float4"
     },
     {
       "name": "ColorTint",
-      "type": "float[4]"
+      "type": "float4"
     },
     {
       "name": "BaseColorExt",
-      "type": "float[4]"
+      "type": "float4"
     },
     {
       "name": "diffuse_tint",
-      "type": "float[3]"
+      "type": "float3"
     },
     {
       "name": "BaseColorFresnel",
-      "type": "float[4]"
+      "type": "float4"
     },
     {
       "name": "transmission_color",
-      "type": "float[3]"
+      "type": "float3"
     }, 
     {
       "name":"FlipFlop_BaseColor3_Highlight",
-      "type": "float[4]"
+      "type": "float4"
     },
     {
       "name":"t_basecolor_tint",
-      "type": "float[4]"
+      "type": "float4"
     }
    
   ]
