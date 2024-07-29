@@ -176,7 +176,7 @@ def create_color_attr(material_path, color_attr_name, color_attr_type):
     # This ensures that the attribute will remain linked to the material during runtime. 
     mat_prim = get_current_stage().GetPrimAtPath(Sdf.Path(material_path))
 
-    if color_attr_type == "float[3]": 
+    if color_attr_type == "float3": 
         # Initialize with default RGB values
         value = (0.0, 0.0, 0.0)                
         color_type = Sdf.ValueTypeNames.Color3f

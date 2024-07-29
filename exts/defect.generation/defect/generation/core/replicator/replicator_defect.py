@@ -282,15 +282,16 @@ def _create_texture_color_randomizer(color_domain_randomization_params):
 
         def get_colors():
             for parent_path in created_materials:
-                # Get a random color for all prims in the parent_path
-                chosen_color = rep.distribution.choice(texture_colors[parent_path])
                 for material, prim_path in created_materials[parent_path].items():
                     # Apply the color to each material using the correct color attribute
                     color_attribute_name = material_color_attribute[material]
                     mat_prim = rep.get.prim_at_path(str(material))
+                    seed= random.randint(0, 999999)                        
                     with mat_prim:
                         for attr_name in color_attribute_name:
-                            rep.modify.attribute(name=attr_name, value=chosen_color)
+                            # Get a random color for all prims in the parent_path
+                            chosen_color = rep.distribution.choice(texture_colors[parent_path])
+                            rep.modify.attribute(name=attr_name, value=chosen_color, seed =seed)
 
             return mat_prim.node
 
@@ -356,17 +357,21 @@ def _create_material_randomizer(material_randomization_params, prim_colors):
                         else: 
                             # Else, given material path is shader path. 
                             shader_path = mat_path    
-                        # Append this material to list of materials that will be used for randomization                   
-                        materials.append(mat_path)
+
                         # Determine if we need RGB or RGBA colors
                         use_rgba = any(attr_type == "float4" for attr_type in color_attr.values())
                         colors = prim_colors if use_rgba else rgba_to_rgb_dict(prim_colors)
                         
                         # Get a random color from the selected colors and modify the shader's respective attributes. 
-                        chosen_color = rep.distribution.choice(colors[prim_path])
+                        seed=random.randint(0, 999999)                        
                         for attr_name, attr_type in color_attr.items(): 
+                            chosen_color = rep.distribution.choice(colors[prim_path], seed=seed)
                             attr_name = f"inputs:{attr_name}"
                             rep.modify.attribute(name=attr_name, value=chosen_color, input_prims = shader_path)
+                        
+                        # Append material to list of materials that will be used for randomization                   
+                        materials.append(mat_path)
+
                     else: 
                         logger.warning(f'Material {mat_path} has no color attributes.')
             else: 
