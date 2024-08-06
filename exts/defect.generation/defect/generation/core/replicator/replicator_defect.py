@@ -206,7 +206,7 @@ def _create_color_randomizer(color_domain_randomization_params):
         rep.randomizer.register(get_colors)
     return all_original_materials
 
-def _create_texture_color_randomizer(color_domain_randomization_params): 
+def _create_texture_color_randomizer(color_domain_randomization_params, material_prims): 
     """
     Creates textured color randomization by creating copies of the original materials bound to the selected prims and assigning new base colors to the copies.
 
@@ -225,15 +225,20 @@ def _create_texture_color_randomizer(color_domain_randomization_params):
     if prim_colors is not None:
         created_materials = {}
         omni_pbr_materials = {}
-        all_original_materials = {}
+        all_original_textures = {}
         material_color_attribute = {}
         color_attribute_name = ""
         texture_colors = prim_colors
 
         for path in prim_colors:
+            # Check if material_prims is not None and if the current path is in material_prims
+            if material_prims is not None and path in material_prims:
+                logger.warning(f'Skipping {path} as it is in material_prims')
+                continue
+            
             created_materials[path] = {}
             omni_pbr_materials[path] = {}
-            all_original_materials[path] = {}
+            all_original_textures[path] = {}
 
             # Get all original materials of all selected prims
             children_path, original_materials, unique_materials = get_original_materials(path)
@@ -251,7 +256,7 @@ def _create_texture_color_randomizer(color_domain_randomization_params):
                     # Save material color attribute name and type
                     if mat_path not in material_color_attribute: 
                         material_color_attribute[mat_path] = []
-                  
+                
                     mat_prim = stage.GetPrimAtPath(material_path).GetChildren()[0]
                     color_attributes = search_color_properties(mat_prim.GetAttributes())
                     for attr_name, attr_type in color_attributes.items(): 
@@ -263,7 +268,7 @@ def _create_texture_color_randomizer(color_domain_randomization_params):
                     # Original material does not exist, Create a new OmniPBR Material
                     mat = rep.create.material_omnipbr()                 
                     mat_path = str(mat.get_input('primsIn')[0])
-                    # OmniPBR Materials have "inputs:diffuse_color_constant" color property, wich takes RGB values. 
+                    # OmniPBR Materials have "inputs:diffuse_color_constant" color property, which takes RGB values. 
                     color_attribute_name = "inputs:diffuse_color_constant"
                     texture_colors[path] = rgba_to_rgb_list(prim_colors[path])
                     material_color_attribute[mat_path] = [color_attribute_name]
@@ -278,25 +283,24 @@ def _create_texture_color_randomizer(color_domain_randomization_params):
                 omni_pbr_path = omni_pbr_materials[path][original_material]
                 created_materials[path][omni_pbr_path].append(prim_path)
 
-            all_original_materials[path] = original_materials
+            all_original_textures[path] = original_materials
 
         def get_colors():
             for parent_path in created_materials:
+                seed = random.randint(0, 999999)                        
+
                 for material, prim_path in created_materials[parent_path].items():
                     # Apply the color to each material using the correct color attribute
                     color_attribute_name = material_color_attribute[material]
                     mat_prim = rep.get.prim_at_path(str(material))
-                    seed= random.randint(0, 999999)                        
                     with mat_prim:
                         for attr_name in color_attribute_name:
                             # Get a random color for all prims in the parent_path
-                            chosen_color = rep.distribution.choice(texture_colors[parent_path])
-                            rep.modify.attribute(name=attr_name, value=chosen_color, seed =seed)
-
-            return mat_prim.node
+                            chosen_color = rep.distribution.choice(texture_colors[parent_path], seed=seed)
+                            rep.modify.attribute(name=attr_name, value=chosen_color)
 
         rep.randomizer.register(get_colors)
-        return all_original_materials, created_materials
+        return all_original_textures, created_materials
 
 def _create_material_randomizer(material_randomization_params, prim_colors):
     """
@@ -414,7 +418,10 @@ def create_defect_layer(defect_generation_request: DefectGenerationRequest, doma
         # Get Texture Randomization params
         if domain_randomization_request.color_domain_randomization_params.active:
             if domain_randomization_request.color_domain_randomization_params.texture_randomization:
-                original_textures, created_textures = _create_texture_color_randomizer(domain_randomization_request.color_domain_randomization_params)
+                if domain_randomization_request.material_domain_randomization_params.active:
+                    original_textures, created_textures = _create_texture_color_randomizer(domain_randomization_request.color_domain_randomization_params, domain_randomization_request.material_domain_randomization_params.material_prims)
+                else: 
+                    original_textures, created_textures = _create_texture_color_randomizer(domain_randomization_request.color_domain_randomization_params, None)
             else:
                 original_textures = _create_color_randomizer(domain_randomization_request.color_domain_randomization_params)
             all_original_textures.update(original_textures)
@@ -528,8 +535,9 @@ def create_defect_layer(defect_generation_request: DefectGenerationRequest, doma
 
             # Texture domain randomization
             if domain_randomization_request.color_domain_randomization_params.texture_randomization:
-                for parent_path in created_textures:      
-                    for material, prim_paths in created_textures[parent_path].items():
-                        # Bind the material to the corresponding prim_paths
-                        rep.modify.material([material], input_prims = prim_paths)
+                if created_textures != {}:
+                    for parent_path in created_textures:      
+                        for material, prim_paths in created_textures[parent_path].items():
+                            # Bind the material to the corresponding prim_paths
+                            rep.modify.material([material], input_prims = prim_paths)
     return all_original_textures       
