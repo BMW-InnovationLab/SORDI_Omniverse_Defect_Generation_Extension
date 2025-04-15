@@ -2,7 +2,7 @@
 
 This extension for NVIDIA Omniverse allows users to create defects and apply them to prims within an Isaac Sim simulation environment. The extension also provides the means to generate annotated images with customizable domain randomization effects.
 
-| ![Loading pc 1](./exts/defect.generation/data/2d_bbox.png) | ![Loading pc 2](./exts/defect.generation/data/no_annotations.png) |
+| ![Loading pc 1](./exts/defect.generation/data/Frames_Burgundy_V03.0107.png) | ![Loading pc 2](./exts/defect.generation/data/Frames_Blue_v04.0784.png) |
 |:----------------------------------------------------------:|:-----------------------------------------------------------------:|
 
 
