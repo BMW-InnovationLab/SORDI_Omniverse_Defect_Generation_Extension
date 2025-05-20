@@ -158,8 +158,9 @@ output_directory/
 
 # Authors
 
-- Angelo Yaghi, [BMW TechOffice](), Munich, Germany
 - Joe Khalil, [BMW TechOffice](), Munich, Germany
+- Jason El Khoury, [BMW TechOffice](), Munich, Germany
+- Angelo Yaghi, [BMW TechOffice](), Munich, Germany
 ##
 - Abboud Hayek, [inmind.ai](https://inmind.ai/), Beirut, Lebanon
 - Charbel Bou Maroun, [inmind.ai](https://inmind.ai/), Beirut, Lebanon
