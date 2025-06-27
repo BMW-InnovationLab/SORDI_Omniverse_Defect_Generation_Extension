@@ -1,4 +1,4 @@
-# AI Pipeline Defect Generation Extension
+# SORDI.ai Defect Generation Extension
 
 This extension for NVIDIA Omniverse allows users to create defects and apply them to prims within an Isaac Sim simulation environment. The extension also provides the means to generate annotated images with customizable domain randomization effects.
 
