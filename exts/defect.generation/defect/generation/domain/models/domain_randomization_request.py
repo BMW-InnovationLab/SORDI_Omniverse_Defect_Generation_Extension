@@ -12,25 +12,25 @@ class LightDomainRandomizationParameters(BaseModel):
     light_position_max_value: float = None
     light_color_min_value: List[float] = None
     light_color_max_value: List[float] = None
-    light_count: int= None
-    active = False
+    light_count: int = None
+    active: bool = False
 
 
 class CameraDomainRandomizationParameters(BaseModel):
     camera_distance_min_value: List[float] = None
     camera_distance_max_value: List[float] = None
     camera_prims: List[Tuple[str,Tuple[Tuple[float, float, float], ...]]] = None
-    active = False
+    active: bool = False
 
 class ColorDomainRandomizationParameters(BaseModel):
     prim_colors: Dict[str, List[Tuple[float, float, float, float]]] = None
-    texture_randomization = False
-    active = False
+    texture_randomization: bool = False
+    active: bool = False
 
-class MaterialDomainRandomizationParameters(BaseModel): 
+class MaterialDomainRandomizationParameters(BaseModel):
     material_prims: Dict[str, List[str]] = None
     created_materials: Dict[str, List[str]] = None
-    active = False
+    active: bool = False
 
 class DomainRandomizationRequest(BaseModel):
     # Light params
